@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getStatusBadgeColor, DIFFICULTY_EMOJI } from "@/lib/status";
 
 interface Submission {
   id: string;
@@ -33,22 +34,6 @@ interface GroupedProblem {
   solved: boolean;
   difficulty: string;
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  Accepted: "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20",
-  "Wrong Answer": "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20",
-  "Time Limit Exceeded": "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20",
-  "Memory Limit Exceeded": "text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20",
-  "Runtime Error": "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20",
-  "Compile Error": "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20",
-};
-
-const DIFFICULTY_EMOJI: Record<string, string> = {
-  Easy: "😊",
-  Medium: "😐",
-  Hard: "😭",
-  Unknown: "❓",
-};
 
 type TimeWindow = "week" | "month" | "year";
 
@@ -393,10 +378,7 @@ export default function SubmissionsPage() {
                                         <tr key={`${submission.id}-${idx}`} className="border-t border-zinc-200 dark:border-zinc-700">
                                           <td className="px-4 py-2">
                                             <span
-                                              className={`inline-flex px-2 py-1 text-xs font-medium rounded ${
-                                                STATUS_COLORS[submission.statusDisplay] ||
-                                                "text-zinc-600 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-700"
-                                              }`}
+                                              className={`inline-flex px-2 py-1 text-xs font-medium rounded ${getStatusBadgeColor(submission.statusDisplay)}`}
                                             >
                                               {submission.statusDisplay}
                                             </span>
