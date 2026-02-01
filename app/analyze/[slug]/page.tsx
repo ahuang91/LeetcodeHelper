@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -84,6 +84,8 @@ export default function AnalyzePage() {
   const [error, setError] = useState("");
   const [problemExpanded, setProblemExpanded] = useState(true);
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
+  const [leftPaneWidth, setLeftPaneWidth] = useState(50); // percentage
+  const [isDragging, setIsDragging] = useState(false);
 
   const handleSubmissionClick = (submissionId: number) => {
     if (expandedSubmissionId === submissionId) {
@@ -106,6 +108,43 @@ export default function AnalyzePage() {
       setProblemExpanded(false);
     }
   };
+
+  const handleMouseDown = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (!isDragging) return;
+      const container = document.getElementById("split-container");
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const newWidth = ((e.clientX - rect.left) / rect.width) * 100;
+      // Clamp between 20% and 80%
+      setLeftPaneWidth(Math.min(80, Math.max(20, newWidth)));
+    },
+    [isDragging]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      // Prevent text selection while dragging
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+    }
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   useEffect(() => {
     async function fetchData() {
@@ -275,9 +314,12 @@ export default function AnalyzePage() {
       </div>
 
       {/* Two-pane layout */}
-      <div className="flex h-[calc(100vh-73px)]">
+      <div id="split-container" className="flex h-[calc(100vh-73px)]">
         {/* Left pane - Problem description and Submissions */}
-        <div className="w-1/2 border-r border-zinc-200 dark:border-zinc-700 overflow-y-auto">
+        <div
+          className="overflow-y-auto"
+          style={{ width: `${leftPaneWidth}%` }}
+        >
           <div className="p-6">
             {/* Collapsible Problem Definition */}
             <div className="mb-6">
@@ -451,8 +493,17 @@ export default function AnalyzePage() {
           </div>
         </div>
 
+        {/* Resizable divider */}
+        <div
+          className="w-1 bg-zinc-200 dark:bg-zinc-700 hover:bg-orange-400 dark:hover:bg-orange-500 cursor-col-resize transition-colors flex-shrink-0"
+          onMouseDown={handleMouseDown}
+        />
+
         {/* Right pane - Analysis */}
-        <div className="w-1/2 bg-zinc-100 dark:bg-zinc-800/50 overflow-y-auto">
+        <div
+          className="bg-zinc-100 dark:bg-zinc-800/50 overflow-y-auto"
+          style={{ width: `${100 - leftPaneWidth}%` }}
+        >
           <div className="p-6">
             {/* Analyze Button */}
             {submissions.length > 0 && (
