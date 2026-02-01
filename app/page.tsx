@@ -1,64 +1,159 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
+  const [username, setUsername] = useState("");
+  const [sessionCookie, setSessionCookie] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [existingUser, setExistingUser] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if credentials already exist
+    fetch("/api/credentials")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.exists) {
+          setExistingUser(data.username);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, sessionCookie }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to save credentials");
+      }
+
+      router.push("/submissions");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClearCredentials = async () => {
+    try {
+      await fetch("/api/credentials", { method: "DELETE" });
+      setExistingUser(null);
+    } catch {
+      setError("Failed to clear credentials");
+    }
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-4">
+      <main className="max-w-md mx-auto">
+        <h1 className="text-3xl font-bold text-center mb-2 text-zinc-900 dark:text-zinc-100">
+          LeetCode Helper
+        </h1>
+        <p className="text-center text-zinc-600 dark:text-zinc-400 mb-8">
+          Analyze your LeetCode submissions
+        </p>
+
+        {existingUser && (
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+            <p className="text-green-800 dark:text-green-200 mb-2">
+              Credentials saved for <strong>{existingUser}</strong>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push("/submissions")}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
+              >
+                View Submissions
+              </button>
+              <button
+                onClick={handleClearCredentials}
+                className="bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 py-2 px-4 rounded-lg transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              LeetCode Username
+            </label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+              placeholder="your_username"
+              required
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+
+          <div>
+            <label
+              htmlFor="sessionCookie"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+            >
+              LeetCode Session Cookie
+            </label>
+            <textarea
+              id="sessionCookie"
+              value={sessionCookie}
+              onChange={(e) => setSessionCookie(e.target.value)}
+              className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+              placeholder="eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+              rows={4}
+              required
+            />
+            <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <details>
+                <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                  How to get your session cookie
+                </summary>
+                <ol className="mt-2 ml-4 list-decimal space-y-1">
+                  <li>Go to leetcode.com and log in</li>
+                  <li>Open Developer Tools (F12)</li>
+                  <li>Go to Application &gt; Cookies &gt; leetcode.com</li>
+                  <li>Find the cookie named <code className="bg-zinc-200 dark:bg-zinc-700 px-1 rounded">LEETCODE_SESSION</code></li>
+                  <li>Copy its value and paste it here</li>
+                </ol>
+              </details>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+              <p className="text-red-700 dark:text-red-300">{error}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
-            Documentation
-          </a>
-        </div>
+            {loading ? "Saving..." : "Save & View Submissions"}
+          </button>
+        </form>
       </main>
     </div>
   );
