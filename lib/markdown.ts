@@ -86,7 +86,7 @@ export function formatMarkdown(text: string): string {
   });
 
   // Unordered lists (bullets) - wrap consecutive bullet items in <ul>
-  result = result.replace(/((?:^- .+$\n?)+)/gm, (match) => {
+  result = result.replace(/((?:^- .+$\n?)+|(?:^\* .+$\n?)+)/gm, (match) => {
     const items = match.trim().split('\n').map((line: string) => {
       const content = line.replace(/^- /, '');
       return `<li class="ml-4">${content}</li>`;
