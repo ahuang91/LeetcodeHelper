@@ -4,22 +4,14 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getStatusBadgeColor, DIFFICULTY_EMOJI } from "@/lib/status";
+import {
+  useCache,
+  CachedSubmission,
+  TimeWindow as CacheTimeWindow,
+} from "@/lib/cache-context";
+import { formatRelativeTime } from "@/lib/cache-utils";
 
-interface Submission {
-  id: string;
-  title: string;
-  titleSlug: string;
-  status: string;
-  statusDisplay: string;
-  lang: string;
-  langName: string;
-  timestamp: string;
-  runtime: string;
-  memory: string;
-  difficulty: string;
-  runtimePercentile?: number;
-  memoryPercentile?: number;
-}
+type Submission = CachedSubmission;
 
 interface SubmissionsResponse {
   submissions: Submission[];
@@ -35,7 +27,7 @@ interface GroupedProblem {
   difficulty: string;
 }
 
-type TimeWindow = "week" | "month" | "year";
+type TimeWindow = CacheTimeWindow;
 
 const TIME_WINDOWS: Record<TimeWindow, { label: string; ms: number }> = {
   week: { label: "Last Week", ms: 7 * 24 * 60 * 60 * 1000 },
@@ -45,23 +37,56 @@ const TIME_WINDOWS: Record<TimeWindow, { label: string; ms: number }> = {
 
 export default function SubmissionsPage() {
   const router = useRouter();
+  const cache = useCache();
+
+  // Initialize from cache or defaults
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("week");
   const [expandedProblems, setExpandedProblems] = useState<Set<string>>(new Set());
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Hydrate from cache on mount (wait for cache to be hydrated from sessionStorage)
+  useEffect(() => {
+    if (!cache.isHydrated || initialized) return;
+
+    // Restore last selected time window
+    const savedTimeWindow = cache.getLastSelectedTimeWindow();
+
+    // Load cached data for that time window
+    const cached = cache.getSubmissionsList(savedTimeWindow);
+    if (cached) {
+      setSubmissions(cached.data || []);
+      setUsername(cached.username || "");
+      setLastUpdated(cached.fetchedAt);
+      setLoading(false);
+      // Start background refresh
+      setRefreshing(true);
+    }
+
+    // Set time window and mark as initialized in one batch
+    setTimeWindow(savedTimeWindow);
+    setInitialized(true);
+  }, [cache.isHydrated, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const BATCH_SIZE = 5;
   const LIMIT = 20;
 
-  const fetchAllSubmissions = useCallback(async (window: TimeWindow) => {
+  const fetchAllSubmissions = useCallback(async (window: TimeWindow, isBackgroundRefresh = false) => {
     const cutoffTime = Date.now() - TIME_WINDOWS[window].ms;
     const allSubmissions: Submission[] = [];
     let currentOffset = 0;
+    let fetchedUsername = "";
 
     try {
-      setLoading(true);
+      if (!isBackgroundRefresh) {
+        setLoading(true);
+      }
+      setRefreshing(true);
       setError("");
 
       while (true) {
@@ -90,7 +115,8 @@ export default function SubmissionsPage() {
 
         // Set username from first response
         if (results[0]?.username) {
-          setUsername(results[0].username);
+          fetchedUsername = results[0].username;
+          setUsername(fetchedUsername);
         }
 
         const batchSubmissions = results.flatMap((r) => r.submissions);
@@ -116,20 +142,46 @@ export default function SubmissionsPage() {
         (s) => parseInt(s.timestamp) >= cutoffTime
       );
       setSubmissions(filtered);
+      setLastUpdated(Date.now());
+
+      // Save to cache
+      cache.setSubmissionsList(filtered, fetchedUsername, window);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [router]);
+  }, [router, cache]);
 
+  // Fetch on mount or when time window changes (wait for initialization to complete)
   useEffect(() => {
-    fetchAllSubmissions(timeWindow);
-  }, [fetchAllSubmissions, timeWindow]);
+    // Wait for initialization to complete (which includes cache hydration)
+    if (!initialized) return;
+
+    // If we have cached data for this time window, do a background refresh
+    const cached = cache.getSubmissionsList(timeWindow);
+    const hasCachedDataForWindow = !!cached;
+    fetchAllSubmissions(timeWindow, hasCachedDataForWindow);
+  }, [initialized, timeWindow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTimeWindowChange = (newWindow: TimeWindow) => {
-    setSubmissions([]);
-    setExpandedProblems(new Set());
+    // Save selection to cache
+    cache.setLastSelectedTimeWindow(newWindow);
+
+    // Check if we have cached data for the new time window
+    const cached = cache.getSubmissionsList(newWindow);
+    if (cached) {
+      // Use cached data immediately
+      setSubmissions(cached.data || []);
+      setUsername(cached.username || "");
+      setLastUpdated(cached.fetchedAt);
+      setExpandedProblems(new Set());
+    } else {
+      // Clear and show loading
+      setSubmissions([]);
+      setExpandedProblems(new Set());
+    }
     setTimeWindow(newWindow);
   };
 
@@ -228,6 +280,17 @@ export default function SubmissionsPage() {
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
               Showing submissions for <strong>{username}</strong>
+              {lastUpdated && (
+                <span className="ml-2 text-sm text-zinc-400">
+                  · Updated {formatRelativeTime(lastUpdated)}
+                  {refreshing && (
+                    <span className="ml-1 inline-flex items-center gap-1">
+                      <span className="animate-spin h-3 w-3 border-b border-orange-500 rounded-full inline-block"></span>
+                      <span className="text-orange-500">refreshing</span>
+                    </span>
+                  )}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-4">

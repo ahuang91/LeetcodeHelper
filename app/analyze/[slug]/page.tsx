@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { formatMarkdown } from "@/lib/markdown";
@@ -10,6 +10,8 @@ import {
   getStatusRingColor,
   DIFFICULTY_COLORS,
 } from "@/lib/status";
+import { useCache, CachedSubmissionWithCode } from "@/lib/cache-context";
+import { hashSubmissions, formatRelativeTime } from "@/lib/cache-utils";
 
 interface TopicTag {
   name: string;
@@ -25,15 +27,7 @@ interface ProblemDetails {
   topicTags: TopicTag[];
 }
 
-interface SubmissionWithCode {
-  id: number;
-  status: string;
-  language: string;
-  timestamp: number;
-  runtime: string;
-  memory: string;
-  code: string;
-}
+type SubmissionWithCode = CachedSubmissionWithCode;
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp).toLocaleDateString("en-US", {
@@ -48,11 +42,14 @@ export default function AnalyzePage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const cache = useCache();
+  const initializedFromCache = useRef(false);
 
   const [problem, setProblem] = useState<ProblemDetails | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionWithCode[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSubmissions, setLoadingSubmissions] = useState(true);
+  const [refreshingSubmissions, setRefreshingSubmissions] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -60,6 +57,32 @@ export default function AnalyzePage() {
   const [expandedSubmissionId, setExpandedSubmissionId] = useState<number | null>(null);
   const [leftPaneWidth, setLeftPaneWidth] = useState(50); // percentage
   const [isDragging, setIsDragging] = useState(false);
+  const [submissionsLastUpdated, setSubmissionsLastUpdated] = useState<number | null>(null);
+  const [analysisLastUpdated, setAnalysisLastUpdated] = useState<number | null>(null);
+  const [cachedAnalysisHash, setCachedAnalysisHash] = useState<string | null>(null);
+
+  // Hydrate from cache on mount
+  useEffect(() => {
+    if (initializedFromCache.current || !slug) return;
+    initializedFromCache.current = true;
+
+    // Load cached submissions for this problem
+    const cachedSubs = cache.getProblemSubmissions(slug);
+    if (cachedSubs?.data && cachedSubs.fetchedAt) {
+      setSubmissions(cachedSubs.data);
+      setSubmissionsLastUpdated(cachedSubs.fetchedAt);
+      setLoadingSubmissions(false);
+      setRefreshingSubmissions(true); // Will refresh in background
+    }
+
+    // Load cached analysis for this problem
+    const cachedAnalysis = cache.getAnalysis(slug);
+    if (cachedAnalysis) {
+      setAnalysis(cachedAnalysis.analysis);
+      setAnalysisLastUpdated(cachedAnalysis.fetchedAt);
+      setCachedAnalysisHash(cachedAnalysis.submissionsHash);
+    }
+  }, [slug, cache]);
 
   const handleSubmissionClick = (submissionId: number) => {
     if (expandedSubmissionId === submissionId) {
@@ -122,9 +145,16 @@ export default function AnalyzePage() {
 
   useEffect(() => {
     async function fetchData() {
+      // Check if we have cached data to determine if this is a background refresh
+      const cachedSubs = cache.getProblemSubmissions(slug);
+      const isBackgroundRefresh = !!(cachedSubs?.data);
+
       try {
-        setLoading(true);
-        setLoadingSubmissions(true);
+        if (!isBackgroundRefresh) {
+          setLoading(true);
+          setLoadingSubmissions(true);
+        }
+        setRefreshingSubmissions(true);
 
         // Get submission IDs from sessionStorage (set by submissions page)
         const storedIds = sessionStorage.getItem(`analyze-${slug}`);
@@ -157,26 +187,46 @@ export default function AnalyzePage() {
 
         if (submissionsRes.ok) {
           const submissionsData = await submissionsRes.json();
-          setSubmissions(submissionsData.submissions);
+          const fetchedSubmissions = submissionsData.submissions;
+          setSubmissions(fetchedSubmissions);
+          setSubmissionsLastUpdated(Date.now());
+
+          // Save to cache
+          cache.setProblemSubmissions(slug, fetchedSubmissions);
         }
         setLoadingSubmissions(false);
+        setRefreshingSubmissions(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
         setLoading(false);
         setLoadingSubmissions(false);
+        setRefreshingSubmissions(false);
       }
     }
 
     if (slug) {
       fetchData();
     }
-  }, [slug, router]);
+  }, [slug, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Calculate current submissions hash
+  const currentSubmissionsHash = submissions.length > 0
+    ? hashSubmissions(submissions.map((s) => ({ id: s.id, timestamp: s.timestamp })))
+    : null;
+
+  // Check if submissions have changed since last analysis
+  const submissionsChanged = !!(
+    cachedAnalysisHash &&
+    currentSubmissionsHash &&
+    cachedAnalysisHash !== currentSubmissionsHash
+  );
 
   const handleAnalyze = async () => {
     if (!problem || submissions.length === 0) return;
 
     setAnalyzing(true);
     setAnalysis(null);
+    setError("");
 
     try {
       const response = await fetch("/api/analyze", {
@@ -205,6 +255,13 @@ export default function AnalyzePage() {
 
       const data = await response.json();
       setAnalysis(data.analysis);
+      setAnalysisLastUpdated(Date.now());
+
+      // Save to cache with current submissions hash
+      if (currentSubmissionsHash) {
+        cache.setAnalysis(slug, data.analysis, currentSubmissionsHash);
+        setCachedAnalysisHash(currentSubmissionsHash);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -358,9 +415,22 @@ export default function AnalyzePage() {
 
             {/* Submission History */}
             <div>
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-4">
-                Submission History ({submissions.length})
-              </h2>
+              <div className="flex items-center gap-2 mb-4">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  Submission History ({submissions.length})
+                </h2>
+                {submissionsLastUpdated && (
+                  <span className="text-xs text-zinc-400">
+                    · {formatRelativeTime(submissionsLastUpdated)}
+                  </span>
+                )}
+                {refreshingSubmissions && (
+                  <span className="flex items-center gap-1 text-xs text-orange-500">
+                    <span className="animate-spin h-3 w-3 border-b border-orange-500 rounded-full"></span>
+                    refreshing
+                  </span>
+                )}
+              </div>
 
               {loadingSubmissions ? (
                 <div className="flex items-center gap-2 text-zinc-500">
@@ -471,17 +541,47 @@ export default function AnalyzePage() {
           style={{ width: `${100 - leftPaneWidth}%` }}
         >
           <div className="p-6">
+            {/* Submissions Changed Alert */}
+            {submissionsChanged && analysis && !analyzing && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                      Submissions have changed
+                    </p>
+                    <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                      New submissions detected since last analysis. Re-analyze to get updated insights.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Analyze Button */}
             {submissions.length > 0 && (
               <button
                 onClick={handleAnalyze}
                 disabled={analyzing}
-                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors mb-6 flex items-center justify-center gap-2"
+                className={`w-full font-medium py-3 px-4 rounded-lg transition-colors mb-6 flex items-center justify-center gap-2 ${
+                  submissionsChanged && analysis
+                    ? "bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 text-white"
+                    : "bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white"
+                }`}
               >
                 {analyzing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     Analyzing {submissions.length} submission{submissions.length > 1 ? "s" : ""}...
+                  </>
+                ) : submissionsChanged && analysis ? (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Re-analyze with Gemini
                   </>
                 ) : (
                   <>
@@ -497,7 +597,7 @@ export default function AnalyzePage() {
             {/* Analysis Results */}
             {analysis && (
               <div className="bg-white dark:bg-zinc-800 rounded-lg p-6">
-                <div className="flex items-center gap-2 mb-4">
+                <div className="flex items-center gap-2 mb-4 flex-wrap">
                   <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
@@ -511,6 +611,11 @@ export default function AnalyzePage() {
                   ) : (
                     <span className="text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded">
                       In Progress
+                    </span>
+                  )}
+                  {analysisLastUpdated && (
+                    <span className="text-xs text-zinc-400 ml-auto">
+                      Analyzed {formatRelativeTime(analysisLastUpdated)}
                     </span>
                   )}
                 </div>
