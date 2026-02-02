@@ -8,6 +8,7 @@ import {
   getStatusBgColor,
   getStatusBorderColor,
   getStatusRingColor,
+  getStatusBadgeColor,
   DIFFICULTY_COLORS,
 } from "@/lib/status";
 import { useCache, CachedSubmissionWithCode, SingleAnalysis } from "@/lib/cache-context";
@@ -44,6 +45,7 @@ export default function AnalyzePage() {
   const slug = params.slug as string;
   const cache = useCache();
   const initializedFromCache = useRef(false);
+  const submissionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   const [problem, setProblem] = useState<ProblemDetails | null>(null);
   const [submissions, setSubmissions] = useState<SubmissionWithCode[]>([]);
@@ -62,9 +64,9 @@ export default function AnalyzePage() {
   const [analyzedSubmissionIds, setAnalyzedSubmissionIds] = useState<Set<number>>(new Set());
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
 
-  // Hydrate from cache on mount
+  // Hydrate from cache on mount (wait for cache to be hydrated first)
   useEffect(() => {
-    if (initializedFromCache.current || !slug) return;
+    if (initializedFromCache.current || !slug || !cache.isHydrated) return;
     initializedFromCache.current = true;
 
     // Load cached submissions for this problem
@@ -86,9 +88,9 @@ export default function AnalyzePage() {
         setExpandedAnalysisIndex(cachedHistory.analyses.length - 1);
       }
     }
-  }, [slug, cache]);
+  }, [slug, cache.isHydrated]);
 
-  const handleSubmissionClick = (submissionId: number) => {
+  const handleSubmissionClick = (submissionId: number, scrollToView = false) => {
     if (expandedSubmissionId === submissionId) {
       // Clicking the same submission collapses it and expands problem
       setExpandedSubmissionId(null);
@@ -97,6 +99,16 @@ export default function AnalyzePage() {
       // Clicking a different submission expands it and collapses problem
       setExpandedSubmissionId(submissionId);
       setProblemExpanded(false);
+
+      // Scroll the submission into view (centered) if requested
+      if (scrollToView) {
+        requestAnimationFrame(() => {
+          const element = submissionRefs.current.get(submissionId);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      }
     }
   };
 
@@ -503,7 +515,16 @@ export default function AnalyzePage() {
                     const wasAnalyzed = analyzedSubmissionIds.has(sub.id);
 
                     return (
-                    <div key={sub.id}>
+                    <div
+                      key={sub.id}
+                      ref={(el) => {
+                        if (el) {
+                          submissionRefs.current.set(sub.id, el);
+                        } else {
+                          submissionRefs.current.delete(sub.id);
+                        }
+                      }}
+                    >
                       {/* Submission header - clickable */}
                       <div
                         className={`flex items-center gap-3 rounded-lg p-3 transition-colors bg-white dark:bg-zinc-800 ${
@@ -723,14 +744,15 @@ export default function AnalyzePage() {
                         <div className="flex items-center gap-1 ml-2">
                           {entry.submissionIds.map((subId) => {
                             const subIndex = getSubmissionIndex(subId);
+                            const sub = submissions.find((s) => s.id === subId);
                             return (
                               <button
                                 key={subId}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleSubmissionClick(subId);
+                                  handleSubmissionClick(subId, true);
                                 }}
-                                className="text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-orange-100 dark:hover:bg-orange-900/30 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                                className={`text-xs px-1.5 py-0.5 rounded transition-colors ${getStatusBadgeColor(sub?.status || "")} hover:bg-zinc-200 dark:hover:bg-zinc-600`}
                               >
                                 #{subIndex}
                               </button>
@@ -753,12 +775,8 @@ export default function AnalyzePage() {
                               return (
                                 <button
                                   key={subId}
-                                  onClick={() => handleSubmissionClick(subId)}
-                                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
-                                    sub?.status === "Accepted"
-                                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                                      : "bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600"
-                                  }`}
+                                  onClick={() => handleSubmissionClick(subId, true)}
+                                  className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${getStatusBadgeColor(sub?.status || "")} hover:bg-zinc-200 dark:hover:bg-zinc-600`}
                                 >
                                   #{subIndex} {sub?.status}
                                 </button>
