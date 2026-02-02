@@ -51,17 +51,22 @@ interface ProblemSubmissionsCache {
   fetchedAt: number | null;
 }
 
-export interface AnalysisCache {
+export interface SingleAnalysis {
   analysis: string;
-  analyzedSubmissionIds: number[];
+  submissionIds: number[];
   fetchedAt: number;
+}
+
+export interface AnalysisHistoryCache {
+  analyses: SingleAnalysis[];
+  allAnalyzedSubmissionIds: number[]; // Union of all submission IDs ever analyzed
 }
 
 interface CacheState {
   submissionsList: SubmissionsListCache;
   lastSelectedTimeWindow: TimeWindow;
   problemSubmissions: Record<string, ProblemSubmissionsCache>;
-  analysisCache: Record<string, AnalysisCache>;
+  analysisHistory: Record<string, AnalysisHistoryCache>;
 }
 
 interface CacheContextValue {
@@ -70,7 +75,7 @@ interface CacheContextValue {
   getSubmissionsList: (timeWindow: TimeWindow) => TimeWindowCache | null;
   getLastSelectedTimeWindow: () => TimeWindow;
   getProblemSubmissions: (slug: string) => ProblemSubmissionsCache | null;
-  getAnalysis: (slug: string) => AnalysisCache | null;
+  getAnalysisHistory: (slug: string) => AnalysisHistoryCache | null;
 
   // Setters
   setSubmissionsList: (
@@ -80,7 +85,7 @@ interface CacheContextValue {
   ) => void;
   setLastSelectedTimeWindow: (timeWindow: TimeWindow) => void;
   setProblemSubmissions: (slug: string, data: CachedSubmissionWithCode[]) => void;
-  setAnalysis: (slug: string, analysis: string, analyzedSubmissionIds: number[]) => void;
+  addAnalysis: (slug: string, analysis: string, submissionIds: number[]) => void;
 
   // Clear
   clearCache: () => void;
@@ -104,7 +109,7 @@ const defaultCacheState: CacheState = {
   submissionsList: defaultSubmissionsList,
   lastSelectedTimeWindow: "week",
   problemSubmissions: {},
-  analysisCache: {},
+  analysisHistory: {},
 };
 
 const CacheContext = createContext<CacheContextValue | null>(null);
@@ -207,19 +212,34 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const setAnalysis = useCallback(
-    (slug: string, analysis: string, analyzedSubmissionIds: number[]) => {
-      setState((prev) => ({
-        ...prev,
-        analysisCache: {
-          ...prev.analysisCache,
-          [slug]: {
-            analysis,
-            analyzedSubmissionIds,
-            fetchedAt: Date.now(),
+  const addAnalysis = useCallback(
+    (slug: string, analysis: string, submissionIds: number[]) => {
+      setState((prev) => {
+        const existing = prev.analysisHistory[slug];
+        const existingAnalyses = existing?.analyses || [];
+        const existingAllIds = existing?.allAnalyzedSubmissionIds || [];
+
+        // Merge new submission IDs with existing ones (deduplicated)
+        const allAnalyzedSubmissionIds = [...new Set([...existingAllIds, ...submissionIds])];
+
+        return {
+          ...prev,
+          analysisHistory: {
+            ...prev.analysisHistory,
+            [slug]: {
+              analyses: [
+                ...existingAnalyses,
+                {
+                  analysis,
+                  submissionIds,
+                  fetchedAt: Date.now(),
+                },
+              ],
+              allAnalyzedSubmissionIds,
+            },
           },
-        },
-      }));
+        };
+      });
     },
     []
   );
@@ -231,11 +251,11 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     [state.problemSubmissions]
   );
 
-  const getAnalysis = useCallback(
-    (slug: string): AnalysisCache | null => {
-      return state.analysisCache[slug] || null;
+  const getAnalysisHistory = useCallback(
+    (slug: string): AnalysisHistoryCache | null => {
+      return state.analysisHistory[slug] || null;
     },
-    [state.analysisCache]
+    [state.analysisHistory]
   );
 
   const clearCache = useCallback(() => {
@@ -250,11 +270,11 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     getSubmissionsList,
     getLastSelectedTimeWindow,
     getProblemSubmissions,
-    getAnalysis,
+    getAnalysisHistory,
     setSubmissionsList,
     setLastSelectedTimeWindow,
     setProblemSubmissions,
-    setAnalysis,
+    addAnalysis,
     clearCache,
   };
 
