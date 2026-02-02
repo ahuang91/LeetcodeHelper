@@ -51,9 +51,9 @@ interface ProblemSubmissionsCache {
   fetchedAt: number | null;
 }
 
-interface AnalysisCache {
+export interface AnalysisCache {
   analysis: string;
-  submissionsHash: string;
+  analyzedSubmissionIds: number[];
   fetchedAt: number;
 }
 
@@ -80,7 +80,7 @@ interface CacheContextValue {
   ) => void;
   setLastSelectedTimeWindow: (timeWindow: TimeWindow) => void;
   setProblemSubmissions: (slug: string, data: CachedSubmissionWithCode[]) => void;
-  setAnalysis: (slug: string, analysis: string, submissionsHash: string) => void;
+  setAnalysis: (slug: string, analysis: string, analyzedSubmissionIds: number[]) => void;
 
   // Clear
   clearCache: () => void;
@@ -208,14 +208,14 @@ export function CacheProvider({ children }: { children: ReactNode }) {
   );
 
   const setAnalysis = useCallback(
-    (slug: string, analysis: string, submissionsHash: string) => {
+    (slug: string, analysis: string, analyzedSubmissionIds: number[]) => {
       setState((prev) => ({
         ...prev,
         analysisCache: {
           ...prev.analysisCache,
           [slug]: {
             analysis,
-            submissionsHash,
+            analyzedSubmissionIds,
             fetchedAt: Date.now(),
           },
         },

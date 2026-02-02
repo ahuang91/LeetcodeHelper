@@ -11,7 +11,7 @@ import {
   DIFFICULTY_COLORS,
 } from "@/lib/status";
 import { useCache, CachedSubmissionWithCode } from "@/lib/cache-context";
-import { hashSubmissions, formatRelativeTime } from "@/lib/cache-utils";
+import { formatRelativeTime } from "@/lib/cache-utils";
 
 interface TopicTag {
   name: string;
@@ -59,7 +59,8 @@ export default function AnalyzePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [submissionsLastUpdated, setSubmissionsLastUpdated] = useState<number | null>(null);
   const [analysisLastUpdated, setAnalysisLastUpdated] = useState<number | null>(null);
-  const [cachedAnalysisHash, setCachedAnalysisHash] = useState<string | null>(null);
+  const [analyzedSubmissionIds, setAnalyzedSubmissionIds] = useState<Set<number>>(new Set());
+  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
 
   // Hydrate from cache on mount
   useEffect(() => {
@@ -80,7 +81,7 @@ export default function AnalyzePage() {
     if (cachedAnalysis) {
       setAnalysis(cachedAnalysis.analysis);
       setAnalysisLastUpdated(cachedAnalysis.fetchedAt);
-      setCachedAnalysisHash(cachedAnalysis.submissionsHash);
+      setAnalyzedSubmissionIds(new Set(cachedAnalysis.analyzedSubmissionIds));
     }
   }, [slug, cache]);
 
@@ -209,20 +210,38 @@ export default function AnalyzePage() {
     }
   }, [slug, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calculate current submissions hash
-  const currentSubmissionsHash = submissions.length > 0
-    ? hashSubmissions(submissions.map((s) => ({ id: s.id, timestamp: s.timestamp })))
-    : null;
+  // Initialize selected submissions when submissions load
+  // Default: select submissions that haven't been analyzed yet
+  useEffect(() => {
+    if (submissions.length === 0) return;
 
-  // Check if submissions have changed since last analysis
-  const submissionsChanged = !!(
-    cachedAnalysisHash &&
-    currentSubmissionsHash &&
-    cachedAnalysisHash !== currentSubmissionsHash
-  );
+    const unanalyzedIds = submissions
+      .filter((s) => !analyzedSubmissionIds.has(s.id))
+      .map((s) => s.id);
+
+    // If there are unanalyzed submissions, select those by default
+    // Otherwise, select all (for re-analysis)
+    if (unanalyzedIds.length > 0) {
+      setSelectedSubmissionIds(new Set(unanalyzedIds));
+    } else if (selectedSubmissionIds.size === 0) {
+      // Only set all selected if nothing is selected yet
+      setSelectedSubmissionIds(new Set(submissions.map((s) => s.id)));
+    }
+  }, [submissions, analyzedSubmissionIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Check if there are new submissions since last analysis
+  const hasNewSubmissions = submissions.some((s) => !analyzedSubmissionIds.has(s.id));
+
+  // Count selected submissions
+  const selectedCount = selectedSubmissionIds.size;
 
   const handleAnalyze = async () => {
-    if (!problem || submissions.length === 0) return;
+    if (!problem || selectedSubmissionIds.size === 0) return;
+
+    // Get the selected submissions
+    const selectedSubmissions = submissions.filter((s) =>
+      selectedSubmissionIds.has(s.id)
+    );
 
     setAnalyzing(true);
     setAnalysis(null);
@@ -237,7 +256,7 @@ export default function AnalyzePage() {
             title: problem.title,
             description: problem.content,
           },
-          submissions: submissions.map((s) => ({
+          submissions: selectedSubmissions.map((s) => ({
             code: s.code,
             language: s.language,
             status: s.status,
@@ -257,11 +276,10 @@ export default function AnalyzePage() {
       setAnalysis(data.analysis);
       setAnalysisLastUpdated(Date.now());
 
-      // Save to cache with current submissions hash
-      if (currentSubmissionsHash) {
-        cache.setAnalysis(slug, data.analysis, currentSubmissionsHash);
-        setCachedAnalysisHash(currentSubmissionsHash);
-      }
+      // Save to cache with the IDs of analyzed submissions
+      const analyzedIds = selectedSubmissions.map((s) => s.id);
+      cache.setAnalysis(slug, data.analysis, analyzedIds);
+      setAnalyzedSubmissionIds(new Set(analyzedIds));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -415,20 +433,42 @@ export default function AnalyzePage() {
 
             {/* Submission History */}
             <div>
-              <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-                  Submission History ({submissions.length})
-                </h2>
-                {submissionsLastUpdated && (
-                  <span className="text-xs text-zinc-400">
-                    · {formatRelativeTime(submissionsLastUpdated)}
-                  </span>
-                )}
-                {refreshingSubmissions && (
-                  <span className="flex items-center gap-1 text-xs text-orange-500">
-                    <span className="animate-spin h-3 w-3 border-b border-orange-500 rounded-full"></span>
-                    refreshing
-                  </span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                    Submission History ({submissions.length})
+                  </h2>
+                  {submissionsLastUpdated && (
+                    <span className="text-xs text-zinc-400">
+                      · {formatRelativeTime(submissionsLastUpdated)}
+                    </span>
+                  )}
+                  {refreshingSubmissions && (
+                    <span className="flex items-center gap-1 text-xs text-orange-500">
+                      <span className="animate-spin h-3 w-3 border-b border-orange-500 rounded-full"></span>
+                      refreshing
+                    </span>
+                  )}
+                </div>
+                {submissions.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-zinc-500">
+                      {selectedCount} selected
+                    </span>
+                    <button
+                      onClick={() => setSelectedSubmissionIds(new Set(submissions.map((s) => s.id)))}
+                      className="text-xs text-orange-500 hover:text-orange-600"
+                    >
+                      All
+                    </button>
+                    <span className="text-zinc-300">|</span>
+                    <button
+                      onClick={() => setSelectedSubmissionIds(new Set())}
+                      className="text-xs text-orange-500 hover:text-orange-600"
+                    >
+                      None
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -443,49 +483,81 @@ export default function AnalyzePage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {submissions.map((sub, index) => (
+                  {submissions.map((sub, index) => {
+                    const isSelected = selectedSubmissionIds.has(sub.id);
+                    const wasAnalyzed = analyzedSubmissionIds.has(sub.id);
+
+                    return (
                     <div key={sub.id}>
                       {/* Submission header - clickable */}
-                      <button
-                        onClick={() => handleSubmissionClick(sub.id)}
-                        className={`w-full flex items-center gap-3 rounded-lg p-3 transition-colors bg-white dark:bg-zinc-800 ${
+                      <div
+                        className={`flex items-center gap-3 rounded-lg p-3 transition-colors bg-white dark:bg-zinc-800 ${
                           expandedSubmissionId === sub.id
                             ? `ring-2 ${getStatusRingColor(sub.status)}`
                             : "hover:bg-zinc-50 dark:hover:bg-zinc-700"
                         }`}
                       >
-                        <svg
-                          className={`w-4 h-4 text-zinc-500 transition-transform ${
-                            expandedSubmissionId === sub.id ? "rotate-90" : ""
-                          }`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                        <div
-                          className={`w-2 h-2 rounded-full ${getStatusBgColor(sub.status)}`}
+                        {/* Checkbox */}
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSelectedSubmissionIds((prev) => {
+                              const next = new Set(prev);
+                              if (isSelected) {
+                                next.delete(sub.id);
+                              } else {
+                                next.add(sub.id);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-zinc-300 text-orange-500 focus:ring-orange-500 cursor-pointer"
                         />
-                        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                          #{index + 1}
-                        </span>
-                        <span
-                          className={`text-sm ${
-                            sub.status === "Accepted"
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-zinc-600 dark:text-zinc-400"
-                          }`}
+                        {/* Expand/collapse button */}
+                        <button
+                          onClick={() => handleSubmissionClick(sub.id)}
+                          className="flex items-center gap-3 flex-1"
                         >
-                          {sub.status}
-                        </span>
-                        <span className="text-xs text-zinc-500 dark:text-zinc-500">
-                          {sub.language}
-                        </span>
-                        <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
-                          {formatDate(sub.timestamp)}
-                        </span>
-                      </button>
+                          <svg
+                            className={`w-4 h-4 text-zinc-500 transition-transform ${
+                              expandedSubmissionId === sub.id ? "rotate-90" : ""
+                            }`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <div
+                            className={`w-2 h-2 rounded-full ${getStatusBgColor(sub.status)}`}
+                          />
+                          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            #{index + 1}
+                          </span>
+                          <span
+                            className={`text-sm ${
+                              sub.status === "Accepted"
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-zinc-600 dark:text-zinc-400"
+                            }`}
+                          >
+                            {sub.status}
+                          </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-500">
+                            {sub.language}
+                          </span>
+                          {wasAnalyzed && (
+                            <span className="text-xs bg-zinc-100 dark:bg-zinc-700 text-zinc-500 px-1.5 py-0.5 rounded">
+                              analyzed
+                            </span>
+                          )}
+                          <span className="text-xs text-zinc-400 dark:text-zinc-500 ml-auto">
+                            {formatDate(sub.timestamp)}
+                          </span>
+                        </button>
+                      </div>
 
                       {/* Expanded submission details */}
                       {expandedSubmissionId === sub.id && (
@@ -522,7 +594,8 @@ export default function AnalyzePage() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
@@ -541,8 +614,8 @@ export default function AnalyzePage() {
           style={{ width: `${100 - leftPaneWidth}%` }}
         >
           <div className="p-6">
-            {/* Submissions Changed Alert */}
-            {submissionsChanged && analysis && !analyzing && (
+            {/* New Submissions Alert */}
+            {hasNewSubmissions && analysis && !analyzing && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
                 <div className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -550,10 +623,10 @@ export default function AnalyzePage() {
                   </svg>
                   <div>
                     <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                      Submissions have changed
+                      New submissions available
                     </p>
                     <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                      New submissions detected since last analysis. Re-analyze to get updated insights.
+                      {submissions.filter((s) => !analyzedSubmissionIds.has(s.id)).length} un-analyzed submission(s) detected. They are pre-selected for analysis.
                     </p>
                   </div>
                 </div>
@@ -564,9 +637,9 @@ export default function AnalyzePage() {
             {submissions.length > 0 && (
               <button
                 onClick={handleAnalyze}
-                disabled={analyzing}
+                disabled={analyzing || selectedCount === 0}
                 className={`w-full font-medium py-3 px-4 rounded-lg transition-colors mb-6 flex items-center justify-center gap-2 ${
-                  submissionsChanged && analysis
+                  hasNewSubmissions && analysis
                     ? "bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 text-white"
                     : "bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white"
                 }`}
@@ -574,21 +647,23 @@ export default function AnalyzePage() {
                 {analyzing ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Analyzing {submissions.length} submission{submissions.length > 1 ? "s" : ""}...
+                    Analyzing {selectedCount} submission{selectedCount > 1 ? "s" : ""}...
                   </>
-                ) : submissionsChanged && analysis ? (
+                ) : selectedCount === 0 ? (
+                  <>Select submissions to analyze</>
+                ) : hasNewSubmissions && analysis ? (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    Re-analyze with Gemini
+                    Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""} with Gemini
                   </>
                 ) : (
                   <>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                     </svg>
-                    Analyze with Gemini
+                    Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""} with Gemini
                   </>
                 )}
               </button>

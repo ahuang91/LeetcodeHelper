@@ -3,26 +3,6 @@
  */
 
 /**
- * Generate a hash from submission identifiers.
- * Used to detect when the set of analyzed submissions has changed.
- */
-export function hashSubmissions(
-  submissions: { id: number; timestamp: number }[]
-): string {
-  // Sort by timestamp to ensure consistent ordering
-  const sorted = [...submissions].sort((a, b) => a.timestamp - b.timestamp);
-  const key = sorted.map((s) => `${s.id}:${s.timestamp}`).join("|");
-
-  // Simple hash function (djb2 variant)
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash << 5) - hash + key.charCodeAt(i);
-    hash |= 0; // Convert to 32-bit integer
-  }
-  return hash.toString(36);
-}
-
-/**
  * Format a relative time string (e.g., "5 minutes ago", "2 hours ago")
  */
 export function formatRelativeTime(timestamp: number): string {
