@@ -15,11 +15,13 @@ export default function Home() {
   const [sessionCookie, setSessionCookie] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [anthropicApiKey, setAnthropicApiKey] = useState("");
+  const [openaiApiKey, setOpenaiApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [existingUser, setExistingUser] = useState<string | null>(null);
   const [hasExistingGeminiKey, setHasExistingGeminiKey] = useState(false);
   const [hasExistingAnthropicKey, setHasExistingAnthropicKey] = useState(false);
+  const [hasExistingOpenaiKey, setHasExistingOpenaiKey] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function Home() {
       setExistingUser(credentials.username);
       setHasExistingGeminiKey(!!credentials.geminiApiKey);
       setHasExistingAnthropicKey(!!credentials.anthropicApiKey);
+      setHasExistingOpenaiKey(!!credentials.openaiApiKey);
     }
   }, []);
 
@@ -64,6 +67,7 @@ export default function Home() {
         sessionCookie,
         geminiApiKey: geminiApiKey || undefined,
         anthropicApiKey: anthropicApiKey || undefined,
+        openaiApiKey: openaiApiKey || undefined,
       });
 
       router.push("/submissions");
@@ -79,16 +83,19 @@ export default function Home() {
     setExistingUser(null);
     setHasExistingGeminiKey(false);
     setHasExistingAnthropicKey(false);
+    setHasExistingOpenaiKey(false);
   };
 
   // Determine if we should show API key fields
   const showGeminiApiKeyField = !config?.geminiApiKeyConfigured;
   const showAnthropicApiKeyField = !config?.anthropicApiKeyConfigured;
+  const showOpenaiApiKeyField = !config?.openaiApiKeyConfigured;
 
   // Determine if API keys are available (either from env or user-provided)
   const hasGeminiKey = config?.geminiApiKeyConfigured || hasExistingGeminiKey;
   const hasAnthropicKey =
     config?.anthropicApiKeyConfigured || hasExistingAnthropicKey;
+  const hasOpenaiKey = config?.openaiApiKeyConfigured || hasExistingOpenaiKey;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-4">
@@ -114,6 +121,11 @@ export default function Home() {
               {hasAnthropicKey && (
                 <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
                   Claude
+                </span>
+              )}
+              {hasOpenaiKey && (
+                <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                  OpenAI
                 </span>
               )}
             </div>
@@ -190,7 +202,7 @@ export default function Home() {
             </div>
           </div>
 
-          {(showGeminiApiKeyField || showAnthropicApiKeyField) && (
+          {(showGeminiApiKeyField || showAnthropicApiKeyField || showOpenaiApiKeyField) && (
             <div className="border-t border-zinc-200 dark:border-zinc-700 pt-6">
               <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
                 AI API Keys{" "}
@@ -231,7 +243,7 @@ export default function Home() {
               )}
 
               {showAnthropicApiKeyField && (
-                <div>
+                <div className="mb-4">
                   <label
                     htmlFor="anthropicApiKey"
                     className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
@@ -256,6 +268,37 @@ export default function Home() {
                       className="text-orange-500 hover:underline"
                     >
                       Anthropic Console
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {showOpenaiApiKeyField && (
+                <div>
+                  <label
+                    htmlFor="openaiApiKey"
+                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+                  >
+                    OpenAI API Key
+                  </label>
+                  <input
+                    type="password"
+                    id="openaiApiKey"
+                    value={openaiApiKey}
+                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+                    placeholder="sk-..."
+                    autoComplete="off"
+                  />
+                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Get your key at{" "}
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      OpenAI Platform
                     </a>
                   </div>
                 </div>

@@ -324,6 +324,7 @@ export default function AnalyzePage() {
           })),
           geminiApiKey: credentials.geminiApiKey,
           anthropicApiKey: credentials.anthropicApiKey,
+          openaiApiKey: credentials.openaiApiKey,
           provider: selectedProvider,
         }),
       });
@@ -721,7 +722,7 @@ export default function AnalyzePage() {
                 >
                   {config?.availableProviders.map((provider) => (
                     <option key={provider} value={provider}>
-                      {provider === "gemini" ? "Gemini" : "Claude"}
+                      {provider === "gemini" ? "Gemini" : provider === "claude" ? "Claude" : "ChatGPT"}
                     </option>
                   ))}
                 </select>
@@ -801,9 +802,11 @@ export default function AnalyzePage() {
                           <span className={`text-xs px-2 py-0.5 rounded ${
                             entry.provider === "gemini"
                               ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
-                              : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                              : entry.provider === "claude"
+                              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                              : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
                           }`}>
-                            {entry.provider === "gemini" ? "Gemini" : "Claude"}
+                            {entry.provider === "gemini" ? "Gemini" : entry.provider === "claude" ? "Claude" : "ChatGPT"}
                           </span>
                         )}
                         {/* Submission tags */}

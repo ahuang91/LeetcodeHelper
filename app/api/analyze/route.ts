@@ -5,7 +5,19 @@ import {
   ProblemForAnalysis,
 } from "@/lib/gemini";
 import { analyzeSubmissionHistory as analyzeWithClaude } from "@/lib/claude";
+import { analyzeSubmissionHistory as analyzeWithOpenAI } from "@/lib/openai";
 import type { DeploymentMode, AIProvider } from "../config/route";
+
+function getEnvKey(provider: AIProvider): string | undefined {
+  switch (provider) {
+    case "gemini":
+      return process.env.GEMINI_API_KEY;
+    case "claude":
+      return process.env.ANTHROPIC_API_KEY;
+    case "openai":
+      return process.env.OPENAI_API_KEY;
+  }
+}
 
 function getApiKey(
   provider: AIProvider,
@@ -14,10 +26,7 @@ function getApiKey(
   const deploymentMode: DeploymentMode =
     (process.env.DEPLOYMENT_MODE as DeploymentMode) || "multi-user";
 
-  const envKey =
-    provider === "gemini"
-      ? process.env.GEMINI_API_KEY
-      : process.env.ANTHROPIC_API_KEY;
+  const envKey = getEnvKey(provider);
 
   if (deploymentMode === "single-user") {
     // In single-user mode, prefer env var (set by deployer)
@@ -36,12 +45,14 @@ export async function POST(request: NextRequest) {
       submissions,
       geminiApiKey,
       anthropicApiKey,
+      openaiApiKey,
       provider = "gemini",
     } = body as {
       problem: ProblemForAnalysis;
       submissions: SubmissionForAnalysis[];
       geminiApiKey?: string;
       anthropicApiKey?: string;
+      openaiApiKey?: string;
       provider?: AIProvider;
     };
 
@@ -52,23 +63,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const clientKey = provider === "gemini" ? geminiApiKey : anthropicApiKey;
+    const clientKeyMap: Record<AIProvider, string | undefined> = {
+      gemini: geminiApiKey,
+      claude: anthropicApiKey,
+      openai: openaiApiKey,
+    };
+    const clientKey = clientKeyMap[provider];
     const apiKey = getApiKey(provider, clientKey);
 
     if (!apiKey) {
-      const providerName = provider === "gemini" ? "Gemini" : "Anthropic";
+      const providerNames: Record<AIProvider, string> = {
+        gemini: "Gemini",
+        claude: "Anthropic",
+        openai: "OpenAI",
+      };
       return NextResponse.json(
         {
-          error: `${providerName} API key not configured. Please add your API key on the homepage.`,
+          error: `${providerNames[provider]} API key not configured. Please add your API key on the homepage.`,
         },
         { status: 400 }
       );
     }
 
-    const analysis =
-      provider === "gemini"
-        ? await analyzeWithGemini(problem, submissions, apiKey)
-        : await analyzeWithClaude(problem, submissions, apiKey);
+    let analysis: string;
+    switch (provider) {
+      case "gemini":
+        analysis = await analyzeWithGemini(problem, submissions, apiKey);
+        break;
+      case "claude":
+        analysis = await analyzeWithClaude(problem, submissions, apiKey);
+        break;
+      case "openai":
+        analysis = await analyzeWithOpenAI(problem, submissions, apiKey);
+        break;
+    }
 
     return NextResponse.json({ analysis });
   } catch (error) {

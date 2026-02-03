@@ -7,6 +7,7 @@ export interface ClientCredentials {
   sessionCookie: string;
   geminiApiKey?: string;
   anthropicApiKey?: string;
+  openaiApiKey?: string;
 }
 
 export function saveCredentials(credentials: ClientCredentials): void {

@@ -51,7 +51,7 @@ interface ProblemSubmissionsCache {
   fetchedAt: number | null;
 }
 
-export type AIProvider = "gemini" | "claude";
+export type AIProvider = "gemini" | "claude" | "openai";
 
 export interface SingleAnalysis {
   analysis: string;
