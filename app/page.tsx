@@ -14,10 +14,12 @@ export default function Home() {
   const [username, setUsername] = useState("");
   const [sessionCookie, setSessionCookie] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [anthropicApiKey, setAnthropicApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [existingUser, setExistingUser] = useState<string | null>(null);
   const [hasExistingGeminiKey, setHasExistingGeminiKey] = useState(false);
+  const [hasExistingAnthropicKey, setHasExistingAnthropicKey] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export default function Home() {
     if (credentials) {
       setExistingUser(credentials.username);
       setHasExistingGeminiKey(!!credentials.geminiApiKey);
+      setHasExistingAnthropicKey(!!credentials.anthropicApiKey);
     }
   }, []);
 
@@ -51,7 +54,7 @@ export default function Home() {
 
         if (!response.ok) {
           const data = await response.json();
-          throw new Error(data.error || "Invalid API key");
+          throw new Error(data.error || "Invalid Gemini API key");
         }
       }
 
@@ -60,6 +63,7 @@ export default function Home() {
         username,
         sessionCookie,
         geminiApiKey: geminiApiKey || undefined,
+        anthropicApiKey: anthropicApiKey || undefined,
       });
 
       router.push("/submissions");
@@ -74,13 +78,17 @@ export default function Home() {
     clearCredentials();
     setExistingUser(null);
     setHasExistingGeminiKey(false);
+    setHasExistingAnthropicKey(false);
   };
 
-  // Determine if we should show the Gemini API key field
+  // Determine if we should show API key fields
   const showGeminiApiKeyField = !config?.geminiApiKeyConfigured;
+  const showAnthropicApiKeyField = !config?.anthropicApiKeyConfigured;
 
-  // Determine if API key is available (either from env or user-provided)
+  // Determine if API keys are available (either from env or user-provided)
   const hasGeminiKey = config?.geminiApiKeyConfigured || hasExistingGeminiKey;
+  const hasAnthropicKey =
+    config?.anthropicApiKeyConfigured || hasExistingAnthropicKey;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-4">
@@ -96,12 +104,19 @@ export default function Home() {
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
             <p className="text-green-800 dark:text-green-200 mb-2">
               Credentials saved for <strong>{existingUser}</strong>
+            </p>
+            <div className="flex flex-wrap gap-1 mb-3">
               {hasGeminiKey && (
-                <span className="ml-2 text-xs bg-green-100 dark:bg-green-800 px-2 py-0.5 rounded">
-                  Gemini API key configured
+                <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                  Gemini
                 </span>
               )}
-            </p>
+              {hasAnthropicKey && (
+                <span className="text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">
+                  Claude
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={() => router.push("/submissions")}
@@ -175,47 +190,76 @@ export default function Home() {
             </div>
           </div>
 
-          {showGeminiApiKeyField && (
-            <div>
-              <label
-                htmlFor="geminiApiKey"
-                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-              >
-                Gemini API Key{" "}
-                <span className="text-zinc-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="password"
-                id="geminiApiKey"
-                value={geminiApiKey}
-                onChange={(e) => setGeminiApiKey(e.target.value)}
-                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
-                placeholder="AIzaSy..."
-                autoComplete="off"
-              />
-              <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                <details>
-                  <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
-                    How to get your Gemini API key
-                  </summary>
-                  <ol className="mt-2 ml-4 list-decimal space-y-1">
-                    <li>
-                      Go to{" "}
-                      <a
-                        href="https://aistudio.google.com/apikey"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-orange-500 hover:underline"
-                      >
-                        Google AI Studio
-                      </a>
-                    </li>
-                    <li>Sign in with your Google account</li>
-                    <li>Click &quot;Create API Key&quot;</li>
-                    <li>Copy the key and paste it here</li>
-                  </ol>
-                </details>
-              </div>
+          {(showGeminiApiKeyField || showAnthropicApiKeyField) && (
+            <div className="border-t border-zinc-200 dark:border-zinc-700 pt-6">
+              <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">
+                AI API Keys{" "}
+                <span className="text-zinc-400 font-normal">
+                  (at least one required for analysis)
+                </span>
+              </p>
+
+              {showGeminiApiKeyField && (
+                <div className="mb-4">
+                  <label
+                    htmlFor="geminiApiKey"
+                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+                  >
+                    Gemini API Key
+                  </label>
+                  <input
+                    type="password"
+                    id="geminiApiKey"
+                    value={geminiApiKey}
+                    onChange={(e) => setGeminiApiKey(e.target.value)}
+                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+                    placeholder="AIzaSy..."
+                    autoComplete="off"
+                  />
+                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Get your key at{" "}
+                    <a
+                      href="https://aistudio.google.com/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      Google AI Studio
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {showAnthropicApiKeyField && (
+                <div>
+                  <label
+                    htmlFor="anthropicApiKey"
+                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+                  >
+                    Anthropic API Key
+                  </label>
+                  <input
+                    type="password"
+                    id="anthropicApiKey"
+                    value={anthropicApiKey}
+                    onChange={(e) => setAnthropicApiKey(e.target.value)}
+                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+                    placeholder="sk-ant-..."
+                    autoComplete="off"
+                  />
+                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    Get your key at{" "}
+                    <a
+                      href="https://console.anthropic.com/settings/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      Anthropic Console
+                    </a>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

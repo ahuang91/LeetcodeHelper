@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 
 export type DeploymentMode = "single-user" | "multi-user";
+export type AIProvider = "gemini" | "claude";
 
 export interface AppConfig {
   deploymentMode: DeploymentMode;
   geminiApiKeyConfigured: boolean;
+  anthropicApiKeyConfigured: boolean;
+  availableProviders: AIProvider[];
 }
 
 export async function GET() {
@@ -14,10 +17,23 @@ export async function GET() {
   // In single-user mode, check if API keys are pre-configured via env vars
   const geminiApiKeyConfigured =
     deploymentMode === "single-user" && !!process.env.GEMINI_API_KEY;
+  const anthropicApiKeyConfigured =
+    deploymentMode === "single-user" && !!process.env.ANTHROPIC_API_KEY;
+
+  // Determine available providers based on configured keys
+  const availableProviders: AIProvider[] = [];
+  if (geminiApiKeyConfigured || deploymentMode === "multi-user") {
+    availableProviders.push("gemini");
+  }
+  if (anthropicApiKeyConfigured || deploymentMode === "multi-user") {
+    availableProviders.push("claude");
+  }
 
   const config: AppConfig = {
     deploymentMode,
     geminiApiKeyConfigured,
+    anthropicApiKeyConfigured,
+    availableProviders,
   };
 
   return NextResponse.json(config);

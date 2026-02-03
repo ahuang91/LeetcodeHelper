@@ -1,31 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  analyzeSubmissionHistory,
+  analyzeSubmissionHistory as analyzeWithGemini,
   SubmissionForAnalysis,
   ProblemForAnalysis,
 } from "@/lib/gemini";
-import type { DeploymentMode } from "../config/route";
+import { analyzeSubmissionHistory as analyzeWithClaude } from "@/lib/claude";
+import type { DeploymentMode, AIProvider } from "../config/route";
 
-function getApiKey(clientProvidedKey?: string): string | null {
+function getApiKey(
+  provider: AIProvider,
+  clientProvidedKey?: string
+): string | null {
   const deploymentMode: DeploymentMode =
     (process.env.DEPLOYMENT_MODE as DeploymentMode) || "multi-user";
 
+  const envKey =
+    provider === "gemini"
+      ? process.env.GEMINI_API_KEY
+      : process.env.ANTHROPIC_API_KEY;
+
   if (deploymentMode === "single-user") {
     // In single-user mode, prefer env var (set by deployer)
-    return process.env.GEMINI_API_KEY || clientProvidedKey || null;
+    return envKey || clientProvidedKey || null;
   } else {
     // In multi-user mode, prefer client-provided key
-    return clientProvidedKey || process.env.GEMINI_API_KEY || null;
+    return clientProvidedKey || envKey || null;
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { problem, submissions, geminiApiKey } = body as {
+    const {
+      problem,
+      submissions,
+      geminiApiKey,
+      anthropicApiKey,
+      provider = "gemini",
+    } = body as {
       problem: ProblemForAnalysis;
       submissions: SubmissionForAnalysis[];
       geminiApiKey?: string;
+      anthropicApiKey?: string;
+      provider?: AIProvider;
     };
 
     if (!problem || !submissions || submissions.length === 0) {
@@ -35,18 +52,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const apiKey = getApiKey(geminiApiKey);
+    const clientKey = provider === "gemini" ? geminiApiKey : anthropicApiKey;
+    const apiKey = getApiKey(provider, clientKey);
+
     if (!apiKey) {
+      const providerName = provider === "gemini" ? "Gemini" : "Anthropic";
       return NextResponse.json(
         {
-          error:
-            "Gemini API key not configured. Please add your API key on the homepage.",
+          error: `${providerName} API key not configured. Please add your API key on the homepage.`,
         },
         { status: 400 }
       );
     }
 
-    const analysis = await analyzeSubmissionHistory(problem, submissions, apiKey);
+    const analysis =
+      provider === "gemini"
+        ? await analyzeWithGemini(problem, submissions, apiKey)
+        : await analyzeWithClaude(problem, submissions, apiKey);
 
     return NextResponse.json({ analysis });
   } catch (error) {

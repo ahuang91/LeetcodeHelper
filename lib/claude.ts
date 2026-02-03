@@ -35,11 +35,26 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+export async function validateApiKey(apiKey: string): Promise<boolean> {
+  try {
+    const client = new Anthropic({ apiKey });
+    await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 10,
+      messages: [{ role: "user", content: "test" }],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function analyzeSubmissionHistory(
   problem: ProblemForAnalysis,
-  submissions: SubmissionForAnalysis[]
+  submissions: SubmissionForAnalysis[],
+  apiKey: string
 ): Promise<string> {
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey });
 
   // Sort submissions chronologically (oldest first)
   const sortedSubmissions = [...submissions].sort(

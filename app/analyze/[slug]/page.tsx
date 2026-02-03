@@ -14,6 +14,7 @@ import {
 import { useCache, CachedSubmissionWithCode, SingleAnalysis } from "@/lib/cache-context";
 import { formatRelativeTime } from "@/lib/cache-utils";
 import { getCredentials } from "@/lib/credentials-client";
+import type { AIProvider, AppConfig } from "@/app/api/config/route";
 
 interface TopicTag {
   name: string;
@@ -64,6 +65,22 @@ export default function AnalyzePage() {
   const [submissionsLastUpdated, setSubmissionsLastUpdated] = useState<number | null>(null);
   const [analyzedSubmissionIds, setAnalyzedSubmissionIds] = useState<Set<number>>(new Set());
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<number>>(new Set());
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
+  const [config, setConfig] = useState<AppConfig | null>(null);
+
+  // Fetch app configuration
+  useEffect(() => {
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then((data: AppConfig) => {
+        setConfig(data);
+        // Default to first available provider
+        if (data.availableProviders.length > 0) {
+          setSelectedProvider(data.availableProviders[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Hydrate from cache on mount (wait for cache to be hydrated first)
   useEffect(() => {
@@ -306,6 +323,8 @@ export default function AnalyzePage() {
             memory: s.memory,
           })),
           geminiApiKey: credentials.geminiApiKey,
+          anthropicApiKey: credentials.anthropicApiKey,
+          provider: selectedProvider,
         }),
       });
 
@@ -689,40 +708,57 @@ export default function AnalyzePage() {
               </div>
             )}
 
-            {/* Analyze Button */}
+            {/* Analyze Button with Provider Dropdown */}
             {submissions.length > 0 && (
-              <button
-                onClick={handleAnalyze}
-                disabled={analyzing || selectedCount === 0}
-                className={`w-full font-medium py-3 px-4 rounded-lg transition-colors mb-6 flex items-center justify-center gap-2 ${
-                  hasNewSubmissions && hasAnalyses
-                    ? "bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 text-white"
-                    : "bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white"
-                }`}
-              >
-                {analyzing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Analyzing {selectedCount} submission{selectedCount > 1 ? "s" : ""}...
-                  </>
-                ) : selectedCount === 0 ? (
-                  <>Select submissions to analyze</>
-                ) : hasNewSubmissions && hasAnalyses ? (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""} with Gemini
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                    Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""} with Gemini
-                  </>
-                )}
-              </button>
+              <div className="flex gap-2 mb-6">
+                {/* Provider dropdown */}
+                <select
+                  value={selectedProvider}
+                  onChange={(e) => setSelectedProvider(e.target.value as AIProvider)}
+                  disabled={analyzing}
+                  className="px-3 py-3 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm font-medium text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50"
+                >
+                  {config?.availableProviders.map((provider) => (
+                    <option key={provider} value={provider}>
+                      {provider === "gemini" ? "Gemini" : "Claude"}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Analyze button */}
+                <button
+                  onClick={handleAnalyze}
+                  disabled={analyzing || selectedCount === 0}
+                  className={`flex-1 font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                    hasNewSubmissions && hasAnalyses
+                      ? "bg-yellow-500 hover:bg-yellow-600 disabled:bg-yellow-300 text-white"
+                      : "bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white"
+                  }`}
+                >
+                  {analyzing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Analyzing {selectedCount} submission{selectedCount > 1 ? "s" : ""}...
+                    </>
+                  ) : selectedCount === 0 ? (
+                    <>Select submissions to analyze</>
+                  ) : hasNewSubmissions && hasAnalyses ? (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""}
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Analyze {selectedCount} submission{selectedCount > 1 ? "s" : ""}
+                    </>
+                  )}
+                </button>
+              </div>
             )}
 
             {/* Analysis History */}
