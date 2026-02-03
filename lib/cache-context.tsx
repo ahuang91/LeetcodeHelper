@@ -51,10 +51,13 @@ interface ProblemSubmissionsCache {
   fetchedAt: number | null;
 }
 
+export type AIProvider = "gemini" | "claude";
+
 export interface SingleAnalysis {
   analysis: string;
   submissionIds: number[];
   fetchedAt: number;
+  provider?: AIProvider;
 }
 
 export interface AnalysisHistoryCache {
@@ -85,7 +88,7 @@ interface CacheContextValue {
   ) => void;
   setLastSelectedTimeWindow: (timeWindow: TimeWindow) => void;
   setProblemSubmissions: (slug: string, data: CachedSubmissionWithCode[]) => void;
-  addAnalysis: (slug: string, analysis: string, submissionIds: number[]) => void;
+  addAnalysis: (slug: string, analysis: string, submissionIds: number[], provider?: AIProvider) => void;
 
   // Clear
   clearCache: () => void;
@@ -213,7 +216,7 @@ export function CacheProvider({ children }: { children: ReactNode }) {
   );
 
   const addAnalysis = useCallback(
-    (slug: string, analysis: string, submissionIds: number[]) => {
+    (slug: string, analysis: string, submissionIds: number[], provider?: AIProvider) => {
       setState((prev) => {
         const existing = prev.analysisHistory[slug];
         const existingAnalyses = existing?.analyses || [];
@@ -233,6 +236,7 @@ export function CacheProvider({ children }: { children: ReactNode }) {
                   analysis,
                   submissionIds,
                   fetchedAt: Date.now(),
+                  provider,
                 },
               ],
               allAnalyzedSubmissionIds,

@@ -339,6 +339,7 @@ export default function AnalyzePage() {
         analysis: data.analysis,
         submissionIds: analyzedIds,
         fetchedAt: Date.now(),
+        provider: selectedProvider,
       };
 
       // Add to local state
@@ -347,7 +348,7 @@ export default function AnalyzePage() {
       setAnalyzedSubmissionIds((prev) => new Set([...prev, ...analyzedIds]));
 
       // Save to cache
-      cache.addAnalysis(slug, data.analysis, analyzedIds);
+      cache.addAnalysis(slug, data.analysis, analyzedIds, selectedProvider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
@@ -794,6 +795,15 @@ export default function AnalyzePage() {
                         {isLatest && (
                           <span className="text-xs bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 px-2 py-0.5 rounded">
                             Latest
+                          </span>
+                        )}
+                        {entry.provider && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${
+                            entry.provider === "gemini"
+                              ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
+                              : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+                          }`}>
+                            {entry.provider === "gemini" ? "Gemini" : "Claude"}
                           </span>
                         )}
                         {/* Submission tags */}
