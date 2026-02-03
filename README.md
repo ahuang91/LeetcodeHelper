@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LeetCode Helper
+
+A web app that analyzes your LeetCode submission history using AI to provide personalized feedback on your problem-solving journey.
+
+## Features
+
+- View your recent LeetCode submissions grouped by problem
+- Analyze your submission history with Gemini AI to understand:
+  - How your thinking evolved across attempts
+  - Common mistakes and misconceptions
+  - Suggestions for improvement
+- Track which submissions you've already analyzed
+- Dark mode support
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- A LeetCode account
+- A Gemini API key (get one at [Google AI Studio](https://aistudio.google.com/apikey))
+
+### Installation
+
+```bash
+git clone <repo-url>
+cd leethelper
+npm install
+```
+
+### Configuration
+
+Copy the example environment file:
+
+```bash
+cp .env.example .env.local
+```
+
+Then edit `.env.local` to configure your deployment.
+
+### Running
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment Modes
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app supports two deployment modes controlled by the `DEPLOYMENT_MODE` environment variable:
 
-## Learn More
+### Single-User Mode
 
-To learn more about Next.js, take a look at the following resources:
+Best for personal use or self-hosting for yourself.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+# .env.local
+DEPLOYMENT_MODE=single-user
+GEMINI_API_KEY=your-api-key-here
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+In this mode:
+- The Gemini API key is configured server-side via environment variable
+- The API key input field is hidden on the homepage
+- Users only need to enter their LeetCode credentials
 
-## Deploy on Vercel
+### Multi-User Mode (Default)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Best for deploying the app for others to use with their own API keys.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# .env.local
+DEPLOYMENT_MODE=multi-user
+```
+
+In this mode:
+- Users provide their own Gemini API key via the homepage
+- API keys are stored in the browser's localStorage (isolated per user)
+- Optionally set `GEMINI_API_KEY` as a fallback for users who don't provide one
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DEPLOYMENT_MODE` | No | `single-user` or `multi-user` (default: `multi-user`) |
+| `GEMINI_API_KEY` | Depends | Required in single-user mode, optional fallback in multi-user mode |
+| `ANTHROPIC_API_KEY` | No | For future Claude integration |
+
+## How It Works
+
+1. **Authentication**: Enter your LeetCode username and session cookie (found in browser dev tools)
+2. **Browse**: View your submissions from the last week, month, or year
+3. **Analyze**: Select a problem and click "Analyze" to get AI-powered insights
+4. **Learn**: Review the analysis to understand your problem-solving patterns
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org/) - React framework
+- [Tailwind CSS](https://tailwindcss.com/) - Styling
+- [Google Generative AI](https://ai.google.dev/) - Gemini API for analysis
+- [leetcode-query](https://www.npmjs.com/package/leetcode-query) - LeetCode API client
+
+## Privacy
+
+- LeetCode credentials are stored in your browser's localStorage only
+- In multi-user mode, API keys are also stored in localStorage
+- No data is sent to any server except LeetCode (for fetching submissions) and Google (for AI analysis)
