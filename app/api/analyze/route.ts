@@ -4,6 +4,20 @@ import {
   SubmissionForAnalysis,
   ProblemForAnalysis,
 } from "@/lib/gemini";
+import type { DeploymentMode } from "../config/route";
+
+function getApiKey(clientProvidedKey?: string): string | null {
+  const deploymentMode: DeploymentMode =
+    (process.env.DEPLOYMENT_MODE as DeploymentMode) || "multi-user";
+
+  if (deploymentMode === "single-user") {
+    // In single-user mode, prefer env var (set by deployer)
+    return process.env.GEMINI_API_KEY || clientProvidedKey || null;
+  } else {
+    // In multi-user mode, prefer client-provided key
+    return clientProvidedKey || process.env.GEMINI_API_KEY || null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,8 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use provided API key or fall back to environment variable
-    const apiKey = geminiApiKey || process.env.GEMINI_API_KEY;
+    const apiKey = getApiKey(geminiApiKey);
     if (!apiKey) {
       return NextResponse.json(
         {

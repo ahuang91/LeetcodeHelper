@@ -7,6 +7,7 @@ import {
   getCredentials,
   clearCredentials,
 } from "@/lib/credentials-client";
+import type { AppConfig } from "./api/config/route";
 
 export default function Home() {
   const router = useRouter();
@@ -17,8 +18,15 @@ export default function Home() {
   const [error, setError] = useState("");
   const [existingUser, setExistingUser] = useState<string | null>(null);
   const [hasExistingGeminiKey, setHasExistingGeminiKey] = useState(false);
+  const [config, setConfig] = useState<AppConfig | null>(null);
 
   useEffect(() => {
+    // Fetch app configuration
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then((data: AppConfig) => setConfig(data))
+      .catch(() => {});
+
     // Check if credentials already exist in localStorage
     const credentials = getCredentials();
     if (credentials) {
@@ -33,8 +41,8 @@ export default function Home() {
     setError("");
 
     try {
-      // Validate Gemini API key if provided
-      if (geminiApiKey) {
+      // Validate Gemini API key if provided (and not using server-configured key)
+      if (geminiApiKey && !config?.geminiApiKeyConfigured) {
         const response = await fetch("/api/validate-api-key", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -68,6 +76,12 @@ export default function Home() {
     setHasExistingGeminiKey(false);
   };
 
+  // Determine if we should show the Gemini API key field
+  const showGeminiApiKeyField = !config?.geminiApiKeyConfigured;
+
+  // Determine if API key is available (either from env or user-provided)
+  const hasGeminiKey = config?.geminiApiKeyConfigured || hasExistingGeminiKey;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900 py-12 px-4">
       <main className="max-w-md mx-auto">
@@ -82,7 +96,7 @@ export default function Home() {
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
             <p className="text-green-800 dark:text-green-200 mb-2">
               Credentials saved for <strong>{existingUser}</strong>
-              {hasExistingGeminiKey && (
+              {hasGeminiKey && (
                 <span className="ml-2 text-xs bg-green-100 dark:bg-green-800 px-2 py-0.5 rounded">
                   Gemini API key configured
                 </span>
@@ -161,47 +175,49 @@ export default function Home() {
             </div>
           </div>
 
-          <div>
-            <label
-              htmlFor="geminiApiKey"
-              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-            >
-              Gemini API Key{" "}
-              <span className="text-zinc-400 font-normal">(optional)</span>
-            </label>
-            <input
-              type="password"
-              id="geminiApiKey"
-              value={geminiApiKey}
-              onChange={(e) => setGeminiApiKey(e.target.value)}
-              className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
-              placeholder="AIzaSy..."
-              autoComplete="off"
-            />
-            <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              <details>
-                <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
-                  How to get your Gemini API key
-                </summary>
-                <ol className="mt-2 ml-4 list-decimal space-y-1">
-                  <li>
-                    Go to{" "}
-                    <a
-                      href="https://aistudio.google.com/apikey"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-orange-500 hover:underline"
-                    >
-                      Google AI Studio
-                    </a>
-                  </li>
-                  <li>Sign in with your Google account</li>
-                  <li>Click &quot;Create API Key&quot;</li>
-                  <li>Copy the key and paste it here</li>
-                </ol>
-              </details>
+          {showGeminiApiKeyField && (
+            <div>
+              <label
+                htmlFor="geminiApiKey"
+                className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+              >
+                Gemini API Key{" "}
+                <span className="text-zinc-400 font-normal">(optional)</span>
+              </label>
+              <input
+                type="password"
+                id="geminiApiKey"
+                value={geminiApiKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
+                className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+                placeholder="AIzaSy..."
+                autoComplete="off"
+              />
+              <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                <details>
+                  <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                    How to get your Gemini API key
+                  </summary>
+                  <ol className="mt-2 ml-4 list-decimal space-y-1">
+                    <li>
+                      Go to{" "}
+                      <a
+                        href="https://aistudio.google.com/apikey"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-orange-500 hover:underline"
+                      >
+                        Google AI Studio
+                      </a>
+                    </li>
+                    <li>Sign in with your Google account</li>
+                    <li>Click &quot;Create API Key&quot;</li>
+                    <li>Copy the key and paste it here</li>
+                  </ol>
+                </details>
+              </div>
             </div>
-          </div>
+          )}
 
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
