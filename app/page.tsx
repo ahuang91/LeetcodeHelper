@@ -113,6 +113,41 @@ export default function Home() {
           Analyze your LeetCode submissions
         </p>
 
+        {config?.deploymentMode === "single-user" && (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  Single-user mode
+                </p>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                  AI providers are configured via environment variables.
+                </p>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {config.geminiApiKeyConfigured && (
+                    <span className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                      Gemini
+                    </span>
+                  )}
+                  {config.anthropicApiKeyConfigured && (
+                    <span className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                      Claude
+                    </span>
+                  )}
+                  {config.openaiApiKeyConfigured && (
+                    <span className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                      OpenAI
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {existingUser && (
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
             <p className="text-green-800 dark:text-green-200 mb-2">
