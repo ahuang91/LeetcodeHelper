@@ -38,6 +38,12 @@ export default function Home() {
       setHasExistingGeminiKey(!!credentials.geminiApiKey);
       setHasExistingAnthropicKey(!!credentials.anthropicApiKey);
       setHasExistingOpenaiKey(!!credentials.openaiApiKey);
+      // Pre-populate form fields with existing values
+      setUsername(credentials.username);
+      setSessionCookie(credentials.sessionCookie);
+      if (credentials.geminiApiKey) setGeminiApiKey(credentials.geminiApiKey);
+      if (credentials.anthropicApiKey) setAnthropicApiKey(credentials.anthropicApiKey);
+      if (credentials.openaiApiKey) setOpenaiApiKey(credentials.openaiApiKey);
     }
   }, []);
 
@@ -317,7 +323,7 @@ export default function Home() {
             disabled={loading}
             className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
-            {loading ? "Validating..." : "Save & View Submissions"}
+            {loading ? "Validating..." : existingUser ? "Update & View Submissions" : "Save & View Submissions"}
           </button>
         </form>
       </main>
