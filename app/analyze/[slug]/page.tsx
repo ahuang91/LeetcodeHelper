@@ -13,6 +13,7 @@ import {
 } from "@/lib/status";
 import { useCache, CachedSubmissionWithCode, SingleAnalysis } from "@/lib/cache-context";
 import { formatRelativeTime } from "@/lib/cache-utils";
+import { getCredentials } from "@/lib/credentials-client";
 
 interface TopicTag {
   name: string;
@@ -161,6 +162,12 @@ export default function AnalyzePage() {
 
   useEffect(() => {
     async function fetchData() {
+      const credentials = getCredentials();
+      if (!credentials) {
+        router.push("/");
+        return;
+      }
+
       // Check if we have cached data to determine if this is a background refresh
       const cachedSubs = cache.getProblemSubmissions(slug);
       const isBackgroundRefresh = !!(cachedSubs?.data);
@@ -176,15 +183,21 @@ export default function AnalyzePage() {
         const storedIds = sessionStorage.getItem(`analyze-${slug}`);
         const submissionIds = storedIds ? JSON.parse(storedIds) : null;
 
-        // Build submissions URL with IDs if available
-        const submissionsUrl = submissionIds
-          ? `/api/submissions/${slug}?ids=${submissionIds.join(",")}`
-          : `/api/submissions/${slug}`;
-
         // Fetch problem and submissions in parallel
         const [problemRes, submissionsRes] = await Promise.all([
-          fetch(`/api/problem/${slug}`),
-          fetch(submissionsUrl),
+          fetch(`/api/problem/${slug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionCookie: credentials.sessionCookie }),
+          }),
+          fetch(`/api/submissions/${slug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionCookie: credentials.sessionCookie,
+              ids: submissionIds,
+            }),
+          }),
         ]);
 
         if (problemRes.status === 401 || submissionsRes.status === 401) {
@@ -261,6 +274,12 @@ export default function AnalyzePage() {
   const handleAnalyze = async () => {
     if (!problem || selectedSubmissionIds.size === 0) return;
 
+    const credentials = getCredentials();
+    if (!credentials) {
+      router.push("/");
+      return;
+    }
+
     // Get the selected submissions
     const selectedSubmissions = submissions.filter((s) =>
       selectedSubmissionIds.has(s.id)
@@ -286,6 +305,7 @@ export default function AnalyzePage() {
             runtime: s.runtime,
             memory: s.memory,
           })),
+          geminiApiKey: credentials.geminiApiKey,
         }),
       });
 

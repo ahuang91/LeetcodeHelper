@@ -2,25 +2,29 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import {
+  saveCredentials,
+  getCredentials,
+  clearCredentials,
+} from "@/lib/credentials-client";
 
 export default function Home() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [sessionCookie, setSessionCookie] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [existingUser, setExistingUser] = useState<string | null>(null);
+  const [hasExistingGeminiKey, setHasExistingGeminiKey] = useState(false);
 
   useEffect(() => {
-    // Check if credentials already exist
-    fetch("/api/credentials")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.exists) {
-          setExistingUser(data.username);
-        }
-      })
-      .catch(() => {});
+    // Check if credentials already exist in localStorage
+    const credentials = getCredentials();
+    if (credentials) {
+      setExistingUser(credentials.username);
+      setHasExistingGeminiKey(!!credentials.geminiApiKey);
+    }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -29,16 +33,26 @@ export default function Home() {
     setError("");
 
     try {
-      const response = await fetch("/api/credentials", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, sessionCookie }),
-      });
+      // Validate Gemini API key if provided
+      if (geminiApiKey) {
+        const response = await fetch("/api/validate-api-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ geminiApiKey }),
+        });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save credentials");
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Invalid API key");
+        }
       }
+
+      // Save credentials to localStorage
+      saveCredentials({
+        username,
+        sessionCookie,
+        geminiApiKey: geminiApiKey || undefined,
+      });
 
       router.push("/submissions");
     } catch (err) {
@@ -48,13 +62,10 @@ export default function Home() {
     }
   };
 
-  const handleClearCredentials = async () => {
-    try {
-      await fetch("/api/credentials", { method: "DELETE" });
-      setExistingUser(null);
-    } catch {
-      setError("Failed to clear credentials");
-    }
+  const handleClearCredentials = () => {
+    clearCredentials();
+    setExistingUser(null);
+    setHasExistingGeminiKey(false);
   };
 
   return (
@@ -71,6 +82,11 @@ export default function Home() {
           <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
             <p className="text-green-800 dark:text-green-200 mb-2">
               Credentials saved for <strong>{existingUser}</strong>
+              {hasExistingGeminiKey && (
+                <span className="ml-2 text-xs bg-green-100 dark:bg-green-800 px-2 py-0.5 rounded">
+                  Gemini API key configured
+                </span>
+              )}
             </p>
             <div className="flex gap-2">
               <button
@@ -133,8 +149,55 @@ export default function Home() {
                   <li>Go to leetcode.com and log in</li>
                   <li>Open Developer Tools (F12)</li>
                   <li>Go to Application &gt; Cookies &gt; leetcode.com</li>
-                  <li>Find the cookie named <code className="bg-zinc-200 dark:bg-zinc-700 px-1 rounded">LEETCODE_SESSION</code></li>
+                  <li>
+                    Find the cookie named{" "}
+                    <code className="bg-zinc-200 dark:bg-zinc-700 px-1 rounded">
+                      LEETCODE_SESSION
+                    </code>
+                  </li>
                   <li>Copy its value and paste it here</li>
+                </ol>
+              </details>
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="geminiApiKey"
+              className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
+            >
+              Gemini API Key{" "}
+              <span className="text-zinc-400 font-normal">(optional)</span>
+            </label>
+            <input
+              type="password"
+              id="geminiApiKey"
+              value={geminiApiKey}
+              onChange={(e) => setGeminiApiKey(e.target.value)}
+              className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
+              placeholder="AIzaSy..."
+              autoComplete="off"
+            />
+            <div className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              <details>
+                <summary className="cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                  How to get your Gemini API key
+                </summary>
+                <ol className="mt-2 ml-4 list-decimal space-y-1">
+                  <li>
+                    Go to{" "}
+                    <a
+                      href="https://aistudio.google.com/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      Google AI Studio
+                    </a>
+                  </li>
+                  <li>Sign in with your Google account</li>
+                  <li>Click &quot;Create API Key&quot;</li>
+                  <li>Copy the key and paste it here</li>
                 </ol>
               </details>
             </div>
@@ -151,7 +214,7 @@ export default function Home() {
             disabled={loading}
             className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
           >
-            {loading ? "Saving..." : "Save & View Submissions"}
+            {loading ? "Validating..." : "Save & View Submissions"}
           </button>
         </form>
       </main>

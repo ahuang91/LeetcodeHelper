@@ -10,6 +10,7 @@ import {
   TimeWindow as CacheTimeWindow,
 } from "@/lib/cache-context";
 import { formatRelativeTime } from "@/lib/cache-utils";
+import { getCredentials } from "@/lib/credentials-client";
 
 type Submission = CachedSubmission;
 
@@ -77,10 +78,16 @@ export default function SubmissionsPage() {
   const LIMIT = 20;
 
   const fetchAllSubmissions = useCallback(async (window: TimeWindow, isBackgroundRefresh = false) => {
+    const credentials = getCredentials();
+    if (!credentials) {
+      router.push("/");
+      return;
+    }
+
     const cutoffTime = Date.now() - TIME_WINDOWS[window].ms;
     const allSubmissions: Submission[] = [];
     let currentOffset = 0;
-    let fetchedUsername = "";
+    let fetchedUsername = credentials.username;
 
     try {
       if (!isBackgroundRefresh) {
@@ -91,7 +98,16 @@ export default function SubmissionsPage() {
 
       while (true) {
         const promises = Array.from({ length: BATCH_SIZE }, (_, i) =>
-          fetch(`/api/submissions?limit=${LIMIT}&offset=${currentOffset + i * LIMIT}`)
+          fetch("/api/submissions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionCookie: credentials.sessionCookie,
+              username: credentials.username,
+              limit: LIMIT,
+              offset: currentOffset + i * LIMIT,
+            }),
+          })
         );
 
         const responses = await Promise.all(promises);

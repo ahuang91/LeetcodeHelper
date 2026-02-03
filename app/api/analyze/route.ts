@@ -8,9 +8,10 @@ import {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { problem, submissions } = body as {
+    const { problem, submissions, geminiApiKey } = body as {
       problem: ProblemForAnalysis;
       submissions: SubmissionForAnalysis[];
+      geminiApiKey?: string;
     };
 
     if (!problem || !submissions || submissions.length === 0) {
@@ -20,14 +21,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    // Use provided API key or fall back to environment variable
+    const apiKey = geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY is not configured." },
-        { status: 500 }
+        {
+          error:
+            "Gemini API key not configured. Please add your API key on the homepage.",
+        },
+        { status: 400 }
       );
     }
 
-    const analysis = await analyzeSubmissionHistory(problem, submissions);
+    const analysis = await analyzeSubmissionHistory(problem, submissions, apiKey);
 
     return NextResponse.json({ analysis });
   } catch (error) {

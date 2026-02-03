@@ -1,10 +1,5 @@
 import { LeetCode, Credential } from "leetcode-query";
 
-export interface StoredCredentials {
-  username: string;
-  sessionCookie: string;
-}
-
 export async function createLeetCodeClient(
   sessionCookie: string
 ): Promise<LeetCode> {

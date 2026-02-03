@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import { decrypt } from "@/lib/crypto";
 import {
   createLeetCodeClient,
   fetchSubmissionsForProblem,
   fetchSubmissionDetail,
-  StoredCredentials,
 } from "@/lib/leetcode";
-
-const CREDENTIALS_FILE = path.join(process.cwd(), "data", "credentials.json");
 
 // LeetCode status codes mapping
 const STATUS_MAP: Record<number, string> = {
@@ -23,48 +17,36 @@ const STATUS_MAP: Record<number, string> = {
   20: "Compile Error",
 };
 
-function getStoredCredentials(): StoredCredentials | null {
-  try {
-    if (!fs.existsSync(CREDENTIALS_FILE)) {
-      return null;
-    }
-    const fileContent = fs.readFileSync(CREDENTIALS_FILE, "utf-8");
-    const { encrypted } = JSON.parse(fileContent);
-    const decrypted = decrypt(encrypted);
-    return JSON.parse(decrypted);
-  } catch {
-    return null;
-  }
-}
-
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const credentials = getStoredCredentials();
+    const body = await request.json();
+    const { sessionCookie, ids } = body;
 
-    if (!credentials) {
+    if (!sessionCookie) {
       return NextResponse.json(
-        { error: "No credentials found. Please set up your credentials first." },
+        { error: "Session cookie is required. Please set up your credentials." },
         { status: 401 }
       );
     }
 
     const { slug } = await params;
 
-    // Check for specific submission IDs in query params
-    const idsParam = request.nextUrl.searchParams.get("ids");
-    const submissionIds = idsParam ? idsParam.split(",") : null;
+    // Check for specific submission IDs
+    const submissionIds: string[] | null = ids || null;
 
-    const client = await createLeetCodeClient(credentials.sessionCookie);
+    const client = await createLeetCodeClient(sessionCookie);
 
     // If specific IDs provided, only fetch those; otherwise fetch all for the problem
     let submissionsToFetch: { id: number }[];
 
     if (submissionIds && submissionIds.length > 0) {
       // Use the provided IDs directly
-      submissionsToFetch = submissionIds.map((id) => ({ id: parseInt(id, 10) }));
+      submissionsToFetch = submissionIds.map((id: string) => ({
+        id: parseInt(id, 10),
+      }));
     } else {
       // Fetch all submissions for this problem
       const submissions = await fetchSubmissionsForProblem(client, slug);

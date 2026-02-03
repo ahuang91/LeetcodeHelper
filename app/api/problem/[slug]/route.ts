@@ -1,42 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
-import { decrypt } from "@/lib/crypto";
-import { createLeetCodeClient, StoredCredentials } from "@/lib/leetcode";
+import { createLeetCodeClient } from "@/lib/leetcode";
 
-const CREDENTIALS_FILE = path.join(process.cwd(), "data", "credentials.json");
-
-function getStoredCredentials(): StoredCredentials | null {
-  try {
-    if (!fs.existsSync(CREDENTIALS_FILE)) {
-      return null;
-    }
-    const fileContent = fs.readFileSync(CREDENTIALS_FILE, "utf-8");
-    const { encrypted } = JSON.parse(fileContent);
-    const decrypted = decrypt(encrypted);
-    return JSON.parse(decrypted);
-  } catch {
-    return null;
-  }
-}
-
-export async function GET(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const credentials = getStoredCredentials();
+    const body = await request.json();
+    const { sessionCookie } = body;
 
-    if (!credentials) {
+    if (!sessionCookie) {
       return NextResponse.json(
-        { error: "No credentials found. Please set up your credentials first." },
+        { error: "Session cookie is required. Please set up your credentials." },
         { status: 401 }
       );
     }
 
     const { slug } = await params;
 
-    const client = await createLeetCodeClient(credentials.sessionCookie);
+    const client = await createLeetCodeClient(sessionCookie);
     const problem = await client.problem(slug);
 
     return NextResponse.json({
