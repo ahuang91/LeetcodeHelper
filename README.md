@@ -5,7 +5,7 @@ A web app that analyzes your LeetCode submission history using AI to provide per
 ## Features
 
 - View your recent LeetCode submissions grouped by problem
-- Analyze your submission history with Gemini AI to understand:
+- Analyze your submission history with Gemini, Claude, or OpenAI to understand:
   - How your thinking evolved across attempts
   - Common mistakes and misconceptions
   - Suggestions for improvement
@@ -58,10 +58,12 @@ Best for personal use or self-hosting for yourself.
 # .env.local
 DEPLOYMENT_MODE=single-user
 GEMINI_API_KEY=your-api-key-here
+ANTHROPIC_API_KEY=your-api-key-here
+OPENAI_API_KEY=your-api-key-here
 ```
 
 In this mode:
-- The Gemini API key is configured server-side via environment variable
+- The APIs key is configured server-side via environment variable
 - The API key input field is hidden on the homepage
 - Users only need to enter their LeetCode credentials
 
@@ -75,17 +77,10 @@ DEPLOYMENT_MODE=multi-user
 ```
 
 In this mode:
-- Users provide their own Gemini API key via the homepage
+- Users provide their own API keys via the homepage
 - API keys are stored in the browser's localStorage (isolated per user)
-- Optionally set `GEMINI_API_KEY` as a fallback for users who don't provide one
+- Optionally set same API keys as single-user mode as a fallback for users who don't provide one
 
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DEPLOYMENT_MODE` | No | `single-user` or `multi-user` (default: `multi-user`) |
-| `GEMINI_API_KEY` | Depends | Required in single-user mode, optional fallback in multi-user mode |
-| `ANTHROPIC_API_KEY` | No | For future Claude integration |
 
 ## How It Works
 
