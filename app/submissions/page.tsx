@@ -492,6 +492,12 @@ export default function SubmissionsPage() {
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                             Difficulty
+                            <span className="relative group cursor-help">
+                              <span className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">(❓)</span>
+                              <span className="absolute left-0 top-6 hidden group-hover:block bg-zinc-800 dark:bg-zinc-700 text-white text-xs rounded px-3 py-2 whitespace-nowrap z-10 shadow-lg">
+                                😊 Easy · 😐 Medium · 😭 Hard
+                              </span>
+                            </span>
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                             Submissions
