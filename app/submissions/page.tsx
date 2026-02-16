@@ -60,6 +60,7 @@ export default function SubmissionsPage() {
   const [error, setError] = useState("");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("week");
   const [expandedProblems, setExpandedProblems] = useState<Set<string>>(new Set());
+  const [selectedTopic, setSelectedTopic] = useState<TopicGroup | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
 
@@ -205,12 +206,12 @@ export default function SubmissionsPage() {
       setUsername(cached.username || "");
       setLastUpdated(cached.fetchedAt);
       setExpandedProblems(new Set());
-      setExpandedTopics(new Set());
+      setSelectedTopic(null);
     } else {
       // Clear and show loading
       setSubmissions([]);
       setExpandedProblems(new Set());
-      setExpandedTopics(new Set());
+      setSelectedTopic(null);
     }
     setTimeWindow(newWindow);
   };
@@ -284,19 +285,30 @@ export default function SubmissionsPage() {
     return groups;
   }, [groupedProblems]);
 
-  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
-
-  const toggleTopic = (tagSlug: string) => {
-    setExpandedTopics((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagSlug)) {
-        next.delete(tagSlug);
-      } else {
-        next.add(tagSlug);
-      }
-      return next;
-    });
+  const closeModal = () => {
+    setSelectedTopic(null);
+    setExpandedProblems(new Set());
   };
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!selectedTopic) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeModal();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTopic]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (selectedTopic) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [selectedTopic]);
 
   const toggleProblem = (titleSlug: string) => {
     setExpandedProblems((prev) => {
@@ -401,110 +413,135 @@ export default function SubmissionsPage() {
           </div>
         ) : (
           <>
-            <div className="bg-white dark:bg-zinc-800 rounded-lg shadow overflow-hidden">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                <thead className="bg-zinc-50 dark:bg-zinc-900">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider w-8"></th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Topic / Problem
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      <span className="flex items-center gap-1">
-                        Difficulty
-                        <span className="relative group cursor-help">
-                          <span className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">(?)</span>
-                          <span className="absolute left-0 top-6 hidden group-hover:block bg-zinc-800 dark:bg-zinc-700 text-white text-xs rounded px-3 py-2 whitespace-nowrap z-10 shadow-lg">
-                            Easy / Medium / Hard
-                          </span>
-                        </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {topicGroups.map((topicGroup) => (
+                <div
+                  key={topicGroup.tag.slug}
+                  onClick={() => setSelectedTopic(topicGroup)}
+                  className="bg-white dark:bg-zinc-800 rounded-lg shadow hover:shadow-md hover:ring-2 hover:ring-orange-500/50 cursor-pointer transition-all p-5"
+                >
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
+                    {topicGroup.tag.name}
+                  </h3>
+                  <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                    <div className="flex items-center justify-between">
+                      <span>Problems attempted</span>
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {topicGroup.problems.length}
                       </span>
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Submissions
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Last Submission
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Solved
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                  {topicGroups.map((topicGroup) => {
-                    const isTopicExpanded = expandedTopics.has(topicGroup.tag.slug);
-                    return (
-                      <Fragment key={topicGroup.tag.slug}>
-                        <tr
-                          className="bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
-                          onClick={() => toggleTopic(topicGroup.tag.slug)}
-                        >
-                          <td className="px-6 py-3 text-zinc-500">
-                            <svg
-                              className={`w-4 h-4 transition-transform ${isTopicExpanded ? "rotate-90" : ""}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </td>
-                          <td colSpan={2} className="px-6 py-3 font-semibold text-zinc-800 dark:text-zinc-200">
-                            {topicGroup.tag.name}
-                            <span className="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">
-                              ({topicGroup.problems.length} {topicGroup.problems.length === 1 ? "problem" : "problems"})
-                            </span>
-                          </td>
-                          <td className="px-6 py-3 text-sm text-zinc-500 dark:text-zinc-400">
-                            {topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0)}
-                          </td>
-                          <td className="px-6 py-3 text-sm text-zinc-500 dark:text-zinc-400">
-                            {formatDate(topicGroup.lastSubmissionDate.toString())}
-                          </td>
-                          <td colSpan={2}></td>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Total submissions</span>
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                        {topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Last submission</span>
+                      <span className="text-zinc-500 dark:text-zinc-400">
+                        {formatDate(topicGroup.lastSubmissionDate.toString())}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Topic modal */}
+            {selectedTopic && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                onClick={closeModal}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  className="relative bg-white dark:bg-zinc-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col mx-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal header */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 flex-shrink-0">
+                    <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                      {selectedTopic.tag.name}
+                      <span className="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">
+                        ({selectedTopic.problems.length} {selectedTopic.problems.length === 1 ? "problem" : "problems"})
+                      </span>
+                    </h2>
+                    <button
+                      onClick={closeModal}
+                      aria-label="Close"
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Modal body */}
+                  <div className="overflow-y-auto flex-1">
+                    <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Problem
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Difficulty
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Submissions
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Last Submission
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                            Solved
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                          </th>
                         </tr>
-                        {isTopicExpanded && topicGroup.problems.map((problem) => {
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                        {selectedTopic.problems.map((problem) => {
                           const isProblemExpanded = expandedProblems.has(problem.titleSlug);
                           return (
-                            <Fragment key={`${topicGroup.tag.slug}-${problem.titleSlug}`}>
+                            <Fragment key={problem.titleSlug}>
                               <tr
                                 className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer"
                                 onClick={() => toggleProblem(problem.titleSlug)}
                               >
-                                <td className="pl-10 pr-6 py-4 text-zinc-500">
-                                  <svg
-                                    className={`w-4 h-4 transition-transform ${isProblemExpanded ? "rotate-90" : ""}`}
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <svg
+                                      className={`w-4 h-4 text-zinc-400 transition-transform flex-shrink-0 ${isProblemExpanded ? "rotate-90" : ""}`}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <a
+                                      href={`https://leetcode.com/problems/${problem.titleSlug}/`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-zinc-900 dark:text-zinc-100 hover:text-orange-500 font-medium"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {problem.title}
+                                    </a>
+                                  </div>
                                 </td>
-                                <td className="px-6 py-4">
-                                  <a
-                                    href={`https://leetcode.com/problems/${problem.titleSlug}/`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-zinc-900 dark:text-zinc-100 hover:text-orange-500 font-medium"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    {problem.title}
-                                  </a>
-                                </td>
-                                <td className="px-6 py-4 text-lg">
+                                <td className="px-4 py-3 text-lg">
                                   {DIFFICULTY_EMOJI[problem.difficulty] || DIFFICULTY_EMOJI.Unknown}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                                <td className="px-4 py-3 text-sm text-zinc-600 dark:text-zinc-400">
                                   {problem.submissions.length}
                                 </td>
-                                <td className="px-6 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                                <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
                                   {formatDate(problem.lastSubmissionDate.toString())}
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-3">
                                   {problem.solved ? (
                                     <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -515,9 +552,9 @@ export default function SubmissionsPage() {
                                     </svg>
                                   )}
                                 </td>
-                                <td className="px-6 py-4">
+                                <td className="px-4 py-3">
                                   <button
-                                    className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-1.5 px-3 rounded transition-colors"
+                                    className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-1.5 px-3 rounded transition-colors whitespace-nowrap"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       const submissionIds = problem.submissions.map((s) => s.id);
@@ -528,13 +565,13 @@ export default function SubmissionsPage() {
                                       router.push(`/analyze/${problem.titleSlug}`);
                                     }}
                                   >
-                                    Analyze Submissions
+                                    Analyze
                                   </button>
                                 </td>
                               </tr>
                               {isProblemExpanded && (
                                 <tr>
-                                  <td colSpan={7} className="px-0 py-0">
+                                  <td colSpan={6} className="px-0 py-0">
                                     <div className="bg-zinc-50 dark:bg-zinc-900/50 px-8 py-4">
                                       <table className="min-w-full">
                                         <thead>
@@ -581,12 +618,12 @@ export default function SubmissionsPage() {
                             </Fragment>
                           );
                         })}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {loading && (
               <div className="mt-6 text-center">
