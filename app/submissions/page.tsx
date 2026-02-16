@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react";
+import { useModal } from "@/lib/hooks/use-modal";
 import { useRouter } from "next/navigation";
+import { TopicCard } from "../components/TopicCard";
 import Link from "next/link";
 import { getStatusBadgeColor, DIFFICULTY_EMOJI } from "@/lib/status";
 import {
@@ -9,7 +11,7 @@ import {
   CachedSubmission,
   TimeWindow as CacheTimeWindow,
 } from "@/lib/cache-context";
-import { formatRelativeTime } from "@/lib/cache-utils";
+import { formatRelativeTime, formatDate } from "@/lib/date-utils";
 import { getCredentials } from "@/lib/credentials-client";
 
 type Submission = CachedSubmission;
@@ -60,7 +62,11 @@ export default function SubmissionsPage() {
   const [error, setError] = useState("");
   const [timeWindow, setTimeWindow] = useState<TimeWindow>("week");
   const [expandedProblems, setExpandedProblems] = useState<Set<string>>(new Set());
-  const [selectedTopic, setSelectedTopic] = useState<TopicGroup | null>(null);
+  const {
+    modalData: selectedTopic,
+    open: openTopicModal,
+    close: closeTopicModal,
+  } = useModal<TopicGroup>(() => setExpandedProblems(new Set()));
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [initialized, setInitialized] = useState(false);
 
@@ -206,12 +212,12 @@ export default function SubmissionsPage() {
       setUsername(cached.username || "");
       setLastUpdated(cached.fetchedAt);
       setExpandedProblems(new Set());
-      setSelectedTopic(null);
+      closeTopicModal();
     } else {
       // Clear and show loading
       setSubmissions([]);
       setExpandedProblems(new Set());
-      setSelectedTopic(null);
+      closeTopicModal();
     }
     setTimeWindow(newWindow);
   };
@@ -285,31 +291,6 @@ export default function SubmissionsPage() {
     return groups;
   }, [groupedProblems]);
 
-  const closeModal = () => {
-    setSelectedTopic(null);
-    setExpandedProblems(new Set());
-  };
-
-  // Close modal on Escape key
-  useEffect(() => {
-    if (!selectedTopic) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeModal();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTopic]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (selectedTopic) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [selectedTopic]);
-
   const toggleProblem = (titleSlug: string) => {
     setExpandedProblems((prev) => {
       const next = new Set(prev);
@@ -319,17 +300,6 @@ export default function SubmissionsPage() {
         next.add(titleSlug);
       }
       return next;
-    });
-  };
-
-  const formatDate = (timestamp: string) => {
-    const date = new Date(parseInt(timestamp));
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
@@ -414,48 +384,31 @@ export default function SubmissionsPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {topicGroups.map((topicGroup) => (
-                <div
-                  key={topicGroup.tag.slug}
-                  onClick={() => setSelectedTopic(topicGroup)}
-                  className="bg-white dark:bg-zinc-800 rounded-lg shadow hover:shadow-md hover:ring-2 hover:ring-orange-500/50 cursor-pointer transition-all p-5"
-                >
-                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
-                    {topicGroup.tag.name}
-                  </h3>
-                  <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
-                    <div className="flex items-center justify-between">
-                      <span>Problems Solved</span>
-                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {topicGroup.problems.filter((p) => p.solved).length} / {topicGroup.problems.length}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Solution Acceptance Rate</span>
-                      <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {(() => {
-                          const total = topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0);
-                          const accepted = topicGroup.problems.reduce((sum, p) => sum + p.submissions.filter((s) => s.statusDisplay === "Accepted").length, 0);
-                          return total > 0 ? `${Math.round((accepted / total) * 100)}%` : "N/A";
-                        })()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Last Submission</span>
-                      <span className="text-zinc-500 dark:text-zinc-400">
-                        {formatDate(topicGroup.lastSubmissionDate.toString())}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+              {topicGroups.map((topicGroup) => {
+                const totalSubs = topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0);
+                const acceptedSubs = topicGroup.problems.reduce(
+                  (sum, p) => sum + p.submissions.filter((s) => s.statusDisplay === "Accepted").length, 0
+                );
+                return (
+                  <TopicCard
+                    key={topicGroup.tag.slug}
+                    name={topicGroup.tag.name}
+                    problemCount={topicGroup.problems.length}
+                    solvedCount={topicGroup.problems.filter((p) => p.solved).length}
+                    totalSubmissions={totalSubs}
+                    acceptedSubmissions={acceptedSubs}
+                    lastSubmissionDate={topicGroup.lastSubmissionDate}
+                    onClick={() => openTopicModal(topicGroup)}
+                  />
+                );
+              })}
             </div>
 
             {/* Topic modal */}
             {selectedTopic && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
-                onClick={closeModal}
+                onClick={closeTopicModal}
               >
                 <div
                   role="dialog"
@@ -472,7 +425,7 @@ export default function SubmissionsPage() {
                       </span>
                     </h2>
                     <button
-                      onClick={closeModal}
+                      onClick={closeTopicModal}
                       aria-label="Close"
                       className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
                     >
@@ -549,7 +502,7 @@ export default function SubmissionsPage() {
                                   {problem.submissions.length}
                                 </td>
                                 <td className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
-                                  {formatDate(problem.lastSubmissionDate.toString())}
+                                  {formatDate(problem.lastSubmissionDate)}
                                 </td>
                                 <td className="px-4 py-3">
                                   {problem.solved ? (
@@ -615,7 +568,7 @@ export default function SubmissionsPage() {
                                                   {submission.memory || "N/A"}
                                                 </td>
                                                 <td className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-                                                  {formatDate(submission.timestamp)}
+                                                  {formatDate(parseInt(submission.timestamp))}
                                                 </td>
                                               </tr>
                                             ))}

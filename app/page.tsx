@@ -8,6 +8,7 @@ import {
   clearCredentials,
 } from "@/lib/credentials-client";
 import type { AppConfig } from "./api/config/route";
+import { ApiKeyInput } from "./components/ApiKeyInput";
 
 export default function Home() {
   const router = useRouter();
@@ -253,96 +254,39 @@ export default function Home() {
               </p>
 
               {showGeminiApiKeyField && (
-                <div className="mb-4">
-                  <label
-                    htmlFor="geminiApiKey"
-                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-                  >
-                    Gemini API Key
-                  </label>
-                  <input
-                    type="password"
-                    id="geminiApiKey"
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
-                    placeholder="AIzaSy..."
-                    autoComplete="off"
-                  />
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Get your key at{" "}
-                    <a
-                      href="https://aistudio.google.com/apikey"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-orange-500 hover:underline"
-                    >
-                      Google AI Studio
-                    </a>
-                  </div>
-                </div>
+                <ApiKeyInput
+                  id="geminiApiKey"
+                  label="Gemini API Key"
+                  value={geminiApiKey}
+                  onChange={setGeminiApiKey}
+                  placeholder="AIzaSy..."
+                  helpText="Google AI Studio"
+                  helpUrl="https://aistudio.google.com/apikey"
+                />
               )}
 
               {showAnthropicApiKeyField && (
-                <div className="mb-4">
-                  <label
-                    htmlFor="anthropicApiKey"
-                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-                  >
-                    Anthropic API Key
-                  </label>
-                  <input
-                    type="password"
-                    id="anthropicApiKey"
-                    value={anthropicApiKey}
-                    onChange={(e) => setAnthropicApiKey(e.target.value)}
-                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
-                    placeholder="sk-ant-..."
-                    autoComplete="off"
-                  />
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Get your key at{" "}
-                    <a
-                      href="https://console.anthropic.com/settings/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-orange-500 hover:underline"
-                    >
-                      Anthropic Console
-                    </a>
-                  </div>
-                </div>
+                <ApiKeyInput
+                  id="anthropicApiKey"
+                  label="Anthropic API Key"
+                  value={anthropicApiKey}
+                  onChange={setAnthropicApiKey}
+                  placeholder="sk-ant-..."
+                  helpText="Anthropic Console"
+                  helpUrl="https://console.anthropic.com/settings/keys"
+                />
               )}
 
               {showOpenaiApiKeyField && (
-                <div>
-                  <label
-                    htmlFor="openaiApiKey"
-                    className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2"
-                  >
-                    OpenAI API Key
-                  </label>
-                  <input
-                    type="password"
-                    id="openaiApiKey"
-                    value={openaiApiKey}
-                    onChange={(e) => setOpenaiApiKey(e.target.value)}
-                    className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:ring-2 focus:ring-orange-500 focus:border-transparent font-mono text-sm"
-                    placeholder="sk-..."
-                    autoComplete="off"
-                  />
-                  <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    Get your key at{" "}
-                    <a
-                      href="https://platform.openai.com/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-orange-500 hover:underline"
-                    >
-                      OpenAI Platform
-                    </a>
-                  </div>
-                </div>
+                <ApiKeyInput
+                  id="openaiApiKey"
+                  label="OpenAI API Key"
+                  value={openaiApiKey}
+                  onChange={setOpenaiApiKey}
+                  placeholder="sk-..."
+                  helpText="OpenAI Platform"
+                  helpUrl="https://platform.openai.com/api-keys"
+                />
               )}
             </div>
           )}

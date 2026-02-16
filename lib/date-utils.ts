@@ -3,6 +3,31 @@
  */
 
 /**
+ * Format a timestamp as a full date string (e.g., "Jan 15, 2025, 02:30 PM")
+ */
+export function formatDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Format a timestamp as a short date string without year (e.g., "Jan 15, 02:30 PM")
+ */
+export function formatDateShort(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
  * Format a relative time string (e.g., "5 minutes ago", "2 hours ago")
  */
 export function formatRelativeTime(timestamp: number): string {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  analyzeSubmissionHistory as analyzeWithGemini,
   SubmissionForAnalysis,
   ProblemForAnalysis,
-} from "@/lib/gemini";
+} from "@/lib/ai-shared";
+import { analyzeSubmissionHistory as analyzeWithGemini } from "@/lib/gemini";
 import { analyzeSubmissionHistory as analyzeWithClaude } from "@/lib/claude";
 import { analyzeSubmissionHistory as analyzeWithOpenAI } from "@/lib/openai";
 import type { DeploymentMode, AIProvider } from "../config/route";
