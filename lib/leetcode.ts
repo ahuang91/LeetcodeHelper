@@ -16,15 +16,28 @@ export async function fetchSubmissions(
   return await client.submissions({ limit, offset });
 }
 
-export async function fetchProblemDifficulty(
+export interface TopicTag {
+  name: string;
+  slug: string;
+}
+
+export interface ProblemMetadata {
+  difficulty: string;
+  topicTags: TopicTag[];
+}
+
+export async function fetchProblemMetadata(
   client: LeetCode,
   titleSlug: string
-): Promise<string> {
+): Promise<ProblemMetadata> {
   try {
     const problem = await client.problem(titleSlug);
-    return problem.difficulty || "Unknown";
+    return {
+      difficulty: problem.difficulty || "Unknown",
+      topicTags: (problem.topicTags as TopicTag[]) || [],
+    };
   } catch {
-    return "Unknown";
+    return { difficulty: "Unknown", topicTags: [] };
   }
 }
 

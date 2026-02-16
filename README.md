@@ -82,13 +82,6 @@ In this mode:
 - Optionally set same API keys as single-user mode as a fallback for users who don't provide one
 
 
-## How It Works
-
-1. **Authentication**: Enter your LeetCode username and session cookie (found in browser dev tools)
-2. **Browse**: View your submissions from the last week, month, or year
-3. **Analyze**: Select a problem and click "Analyze" to get AI-powered insights
-4. **Learn**: Review the analysis to understand your problem-solving patterns
-
 ## Tech Stack
 
 - [Next.js](https://nextjs.org/) - React framework

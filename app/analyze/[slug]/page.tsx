@@ -775,9 +775,12 @@ export default function AnalyzePage() {
                   return (
                     <div key={entry.fetchedAt} className="bg-white dark:bg-zinc-800 rounded-lg overflow-hidden">
                       {/* Collapsible header */}
-                      <button
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setExpandedAnalysisIndex(isExpanded ? null : originalIndex)}
-                        className="w-full flex items-center gap-2 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedAnalysisIndex(isExpanded ? null : originalIndex); } }}
+                        className="w-full flex items-center gap-2 p-4 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors cursor-pointer"
                       >
                         <svg
                           className={`w-4 h-4 text-zinc-500 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -831,7 +834,7 @@ export default function AnalyzePage() {
                         <span className="text-xs text-zinc-400 ml-auto">
                           {formatRelativeTime(entry.fetchedAt)}
                         </span>
-                      </button>
+                      </div>
 
                       {/* Expanded content */}
                       {isExpanded && (

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createLeetCodeClient,
   fetchSubmissions,
-  fetchProblemDifficulty,
+  fetchProblemMetadata,
 } from "@/lib/leetcode";
 
 export async function POST(request: NextRequest) {
@@ -20,31 +20,32 @@ export async function POST(request: NextRequest) {
     const client = await createLeetCodeClient(sessionCookie);
     const submissions = await fetchSubmissions(client, limit, offset);
 
-    // Get unique problem slugs and fetch their difficulties
+    // Get unique problem slugs and fetch their metadata (difficulty + topic tags)
     const uniqueSlugs = [
       ...new Set(submissions.map((s: { titleSlug: string }) => s.titleSlug)),
     ];
-    const difficultyPromises = uniqueSlugs.map((slug) =>
-      fetchProblemDifficulty(client, slug).then((difficulty) => ({
+    const metadataPromises = uniqueSlugs.map((slug) =>
+      fetchProblemMetadata(client, slug).then((metadata) => ({
         slug,
-        difficulty,
+        metadata,
       }))
     );
-    const difficulties = await Promise.all(difficultyPromises);
-    const difficultyMap = new Map(
-      difficulties.map(({ slug, difficulty }) => [slug, difficulty])
+    const metadataResults = await Promise.all(metadataPromises);
+    const metadataMap = new Map(
+      metadataResults.map(({ slug, metadata }) => [slug, metadata])
     );
 
-    // Add difficulty to each submission
-    const submissionsWithDifficulty = submissions.map(
+    // Add difficulty and topicTags to each submission
+    const submissionsWithMetadata = submissions.map(
       (s: { titleSlug: string }) => ({
         ...s,
-        difficulty: difficultyMap.get(s.titleSlug) || "Unknown",
+        difficulty: metadataMap.get(s.titleSlug)?.difficulty || "Unknown",
+        topicTags: metadataMap.get(s.titleSlug)?.topicTags || [],
       })
     );
 
     return NextResponse.json({
-      submissions: submissionsWithDifficulty,
+      submissions: submissionsWithMetadata,
       username: username || "Unknown",
     });
   } catch (error) {

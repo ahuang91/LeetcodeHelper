@@ -22,6 +22,7 @@ export interface CachedSubmission {
   runtime: string;
   memory: string;
   difficulty: string;
+  topicTags?: { name: string; slug: string }[];
   runtimePercentile?: number;
   memoryPercentile?: number;
 }

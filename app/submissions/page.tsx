@@ -19,6 +19,11 @@ interface SubmissionsResponse {
   username: string;
 }
 
+interface TopicTag {
+  name: string;
+  slug: string;
+}
+
 interface GroupedProblem {
   title: string;
   titleSlug: string;
@@ -26,6 +31,13 @@ interface GroupedProblem {
   lastSubmissionDate: number;
   solved: boolean;
   difficulty: string;
+  topicTags: TopicTag[];
+}
+
+interface TopicGroup {
+  tag: TopicTag;
+  problems: GroupedProblem[];
+  lastSubmissionDate: number;
 }
 
 type TimeWindow = CacheTimeWindow;
@@ -193,10 +205,12 @@ export default function SubmissionsPage() {
       setUsername(cached.username || "");
       setLastUpdated(cached.fetchedAt);
       setExpandedProblems(new Set());
+      setExpandedTopics(new Set());
     } else {
       // Clear and show loading
       setSubmissions([]);
       setExpandedProblems(new Set());
+      setExpandedTopics(new Set());
     }
     setTimeWindow(newWindow);
   };
@@ -223,6 +237,7 @@ export default function SubmissionsPage() {
           lastSubmissionDate: parseInt(submission.timestamp),
           solved: submission.statusDisplay === "Accepted",
           difficulty: submission.difficulty,
+          topicTags: (submission.topicTags || []).map((t) => ({ name: t.name, slug: t.slug })),
         });
       }
     }
@@ -232,6 +247,56 @@ export default function SubmissionsPage() {
       (a, b) => b.lastSubmissionDate - a.lastSubmissionDate
     );
   }, [submissions]);
+
+  const topicGroups = useMemo((): TopicGroup[] => {
+    const tagMap = new Map<string, TopicGroup>();
+
+    for (const problem of groupedProblems) {
+      const tags = problem.topicTags.length > 0
+        ? problem.topicTags
+        : [{ name: "Uncategorized", slug: "uncategorized" }];
+
+      for (const tag of tags) {
+        const existing = tagMap.get(tag.slug);
+        if (existing) {
+          existing.problems.push(problem);
+          if (problem.lastSubmissionDate > existing.lastSubmissionDate) {
+            existing.lastSubmissionDate = problem.lastSubmissionDate;
+          }
+        } else {
+          tagMap.set(tag.slug, {
+            tag,
+            problems: [problem],
+            lastSubmissionDate: problem.lastSubmissionDate,
+          });
+        }
+      }
+    }
+
+    const groups = Array.from(tagMap.values()).sort(
+      (a, b) => b.lastSubmissionDate - a.lastSubmissionDate
+    );
+    for (const group of groups) {
+      group.problems.sort(
+        (a, b) => b.lastSubmissionDate - a.lastSubmissionDate
+      );
+    }
+    return groups;
+  }, [groupedProblems]);
+
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+
+  const toggleTopic = (tagSlug: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagSlug)) {
+        next.delete(tagSlug);
+      } else {
+        next.add(tagSlug);
+      }
+      return next;
+    });
+  };
 
   const toggleProblem = (titleSlug: string) => {
     setExpandedProblems((prev) => {
@@ -295,7 +360,7 @@ export default function SubmissionsPage() {
               Submissions
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Showing submissions for <strong>{username}</strong>
+              Showing {groupedProblems.length} {groupedProblems.length === 1 ? "problem" : "problems"} across {topicGroups.length} {topicGroups.length === 1 ? "topic" : "topics"} for <strong>{username}</strong>
               {lastUpdated && (
                 <span className="ml-2 text-sm text-zinc-400">
                   · Updated {formatRelativeTime(lastUpdated)}
@@ -330,7 +395,7 @@ export default function SubmissionsPage() {
           </div>
         </div>
 
-        {groupedProblems.length === 0 ? (
+        {topicGroups.length === 0 ? (
           <div className="bg-white dark:bg-zinc-800 rounded-lg p-8 text-center">
             <p className="text-zinc-600 dark:text-zinc-400">No submissions found. Please select a different time window.</p>
           </div>
@@ -342,15 +407,15 @@ export default function SubmissionsPage() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider w-8"></th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                      Problem
+                      Topic / Problem
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
                       <span className="flex items-center gap-1">
                         Difficulty
                         <span className="relative group cursor-help">
-                          <span className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">(❓)</span>
+                          <span className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">(?)</span>
                           <span className="absolute left-0 top-6 hidden group-hover:block bg-zinc-800 dark:bg-zinc-700 text-white text-xs rounded px-3 py-2 whitespace-nowrap z-10 shadow-lg">
-                            😊 Easy · 😐 Medium · 😭 Hard
+                            Easy / Medium / Hard
                           </span>
                         </span>
                       </span>
@@ -369,17 +434,17 @@ export default function SubmissionsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                  {groupedProblems.map((problem) => {
-                    const isExpanded = expandedProblems.has(problem.titleSlug);
+                  {topicGroups.map((topicGroup) => {
+                    const isTopicExpanded = expandedTopics.has(topicGroup.tag.slug);
                     return (
-                      <Fragment key={problem.titleSlug}>
+                      <Fragment key={topicGroup.tag.slug}>
                         <tr
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer"
-                          onClick={() => toggleProblem(problem.titleSlug)}
+                          className="bg-zinc-100 dark:bg-zinc-800/80 hover:bg-zinc-200 dark:hover:bg-zinc-700 cursor-pointer"
+                          onClick={() => toggleTopic(topicGroup.tag.slug)}
                         >
-                          <td className="px-6 py-4 text-zinc-500">
+                          <td className="px-6 py-3 text-zinc-500">
                             <svg
-                              className={`w-4 h-4 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                              className={`w-4 h-4 transition-transform ${isTopicExpanded ? "rotate-90" : ""}`}
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -387,101 +452,135 @@ export default function SubmissionsPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                           </td>
-                          <td className="px-6 py-4">
-                            <a
-                              href={`https://leetcode.com/problems/${problem.titleSlug}/`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-zinc-900 dark:text-zinc-100 hover:text-orange-500 font-medium"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {problem.title}
-                            </a>
+                          <td colSpan={2} className="px-6 py-3 font-semibold text-zinc-800 dark:text-zinc-200">
+                            {topicGroup.tag.name}
+                            <span className="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">
+                              ({topicGroup.problems.length} {topicGroup.problems.length === 1 ? "problem" : "problems"})
+                            </span>
                           </td>
-                          <td className="px-6 py-4 text-lg">
-                            {DIFFICULTY_EMOJI[problem.difficulty] || DIFFICULTY_EMOJI.Unknown}
+                          <td className="px-6 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                            {topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0)}
                           </td>
-                          <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                            {problem.submissions.length}
+                          <td className="px-6 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                            {formatDate(topicGroup.lastSubmissionDate.toString())}
                           </td>
-                          <td className="px-6 py-4 text-sm text-zinc-500 dark:text-zinc-400">
-                            {formatDate(problem.lastSubmissionDate.toString())}
-                          </td>
-                          <td className="px-6 py-4">
-                            {problem.solved ? (
-                              <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : (
-                              <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <button
-                              className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-1.5 px-3 rounded transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Store submission IDs for this problem in sessionStorage
-                                const submissionIds = problem.submissions.map((s) => s.id);
-                                sessionStorage.setItem(
-                                  `analyze-${problem.titleSlug}`,
-                                  JSON.stringify(submissionIds)
-                                );
-                                router.push(`/analyze/${problem.titleSlug}`);
-                              }}
-                            >
-                              Analyze Submissions
-                            </button>
-                          </td>
+                          <td colSpan={2}></td>
                         </tr>
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan={7} className="px-0 py-0">
-                              <div className="bg-zinc-50 dark:bg-zinc-900/50 px-8 py-4">
-                                <table className="min-w-full">
-                                  <thead>
-                                    <tr className="text-xs text-zinc-500 dark:text-zinc-400 uppercase">
-                                      <th className="px-4 py-2 text-left">Status</th>
-                                      <th className="px-4 py-2 text-left">Language</th>
-                                      <th className="px-4 py-2 text-left">Runtime</th>
-                                      <th className="px-4 py-2 text-left">Memory</th>
-                                      <th className="px-4 py-2 text-left">Date</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {problem.submissions
-                                      .sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp))
-                                      .map((submission, idx) => (
-                                        <tr key={`${submission.id}-${idx}`} className="border-t border-zinc-200 dark:border-zinc-700">
-                                          <td className="px-4 py-2">
-                                            <span
-                                              className={`inline-flex px-2 py-1 text-xs font-medium rounded ${getStatusBadgeColor(submission.statusDisplay)}`}
-                                            >
-                                              {submission.statusDisplay}
-                                            </span>
-                                          </td>
-                                          <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
-                                            {submission.langName || submission.lang}
-                                          </td>
-                                          <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
-                                            {submission.runtime || "N/A"}
-                                          </td>
-                                          <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
-                                            {submission.memory || "N/A"}
-                                          </td>
-                                          <td className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
-                                            {formatDate(submission.timestamp)}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
+                        {isTopicExpanded && topicGroup.problems.map((problem) => {
+                          const isProblemExpanded = expandedProblems.has(problem.titleSlug);
+                          return (
+                            <Fragment key={`${topicGroup.tag.slug}-${problem.titleSlug}`}>
+                              <tr
+                                className="hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer"
+                                onClick={() => toggleProblem(problem.titleSlug)}
+                              >
+                                <td className="pl-10 pr-6 py-4 text-zinc-500">
+                                  <svg
+                                    className={`w-4 h-4 transition-transform ${isProblemExpanded ? "rotate-90" : ""}`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <a
+                                    href={`https://leetcode.com/problems/${problem.titleSlug}/`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-zinc-900 dark:text-zinc-100 hover:text-orange-500 font-medium"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {problem.title}
+                                  </a>
+                                </td>
+                                <td className="px-6 py-4 text-lg">
+                                  {DIFFICULTY_EMOJI[problem.difficulty] || DIFFICULTY_EMOJI.Unknown}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                                  {problem.submissions.length}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-zinc-500 dark:text-zinc-400">
+                                  {formatDate(problem.lastSubmissionDate.toString())}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {problem.solved ? (
+                                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <button
+                                    className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-1.5 px-3 rounded transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const submissionIds = problem.submissions.map((s) => s.id);
+                                      sessionStorage.setItem(
+                                        `analyze-${problem.titleSlug}`,
+                                        JSON.stringify(submissionIds)
+                                      );
+                                      router.push(`/analyze/${problem.titleSlug}`);
+                                    }}
+                                  >
+                                    Analyze Submissions
+                                  </button>
+                                </td>
+                              </tr>
+                              {isProblemExpanded && (
+                                <tr>
+                                  <td colSpan={7} className="px-0 py-0">
+                                    <div className="bg-zinc-50 dark:bg-zinc-900/50 px-8 py-4">
+                                      <table className="min-w-full">
+                                        <thead>
+                                          <tr className="text-xs text-zinc-500 dark:text-zinc-400 uppercase">
+                                            <th className="px-4 py-2 text-left">Status</th>
+                                            <th className="px-4 py-2 text-left">Language</th>
+                                            <th className="px-4 py-2 text-left">Runtime</th>
+                                            <th className="px-4 py-2 text-left">Memory</th>
+                                            <th className="px-4 py-2 text-left">Date</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {problem.submissions
+                                            .sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp))
+                                            .map((submission, idx) => (
+                                              <tr key={`${submission.id}-${idx}`} className="border-t border-zinc-200 dark:border-zinc-700">
+                                                <td className="px-4 py-2">
+                                                  <span
+                                                    className={`inline-flex px-2 py-1 text-xs font-medium rounded ${getStatusBadgeColor(submission.statusDisplay)}`}
+                                                  >
+                                                    {submission.statusDisplay}
+                                                  </span>
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                                  {submission.langName || submission.lang}
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                                  {submission.runtime || "N/A"}
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                                  {submission.memory || "N/A"}
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                                  {formatDate(submission.timestamp)}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          );
+                        })}
                       </Fragment>
                     );
                   })}
