@@ -425,19 +425,23 @@ export default function SubmissionsPage() {
                   </h3>
                   <div className="space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                     <div className="flex items-center justify-between">
-                      <span>Problems attempted</span>
+                      <span>Problems Solved</span>
                       <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {topicGroup.problems.length}
+                        {topicGroup.problems.filter((p) => p.solved).length} / {topicGroup.problems.length}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Total submissions</span>
+                      <span>Solution Acceptance Rate</span>
                       <span className="font-medium text-zinc-900 dark:text-zinc-100">
-                        {topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0)}
+                        {(() => {
+                          const total = topicGroup.problems.reduce((sum, p) => sum + p.submissions.length, 0);
+                          const accepted = topicGroup.problems.reduce((sum, p) => sum + p.submissions.filter((s) => s.statusDisplay === "Accepted").length, 0);
+                          return total > 0 ? `${Math.round((accepted / total) * 100)}%` : "N/A";
+                        })()}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span>Last submission</span>
+                      <span>Last Submission</span>
                       <span className="text-zinc-500 dark:text-zinc-400">
                         {formatDate(topicGroup.lastSubmissionDate.toString())}
                       </span>
