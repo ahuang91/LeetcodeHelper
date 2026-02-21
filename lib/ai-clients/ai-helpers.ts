@@ -1,4 +1,4 @@
-import { formatDate } from "./date-utils";
+import { formatDate } from "../date-utils";
 
 export interface SubmissionForAnalysis {
   code: string;
@@ -25,7 +25,7 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-export function buildAnalysisPrompt(
+export function buildSingleProblemAnalysisPrompt(
   problem: ProblemForAnalysis,
   submissions: SubmissionForAnalysis[]
 ): string {

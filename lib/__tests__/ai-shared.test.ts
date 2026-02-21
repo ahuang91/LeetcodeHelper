@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildAnalysisPrompt } from "../ai-shared";
-import type { SubmissionForAnalysis, ProblemForAnalysis } from "../ai-shared";
+import { buildSingleProblemAnalysisPrompt } from "../ai-clients/ai-helpers";
+import type { SubmissionForAnalysis, ProblemForAnalysis } from "../ai-clients/ai-helpers";
 
 const makeProblem = (
   overrides?: Partial<ProblemForAnalysis>
@@ -22,12 +22,12 @@ const makeSubmission = (
 
 describe("buildAnalysisPrompt", () => {
   it("includes the problem title", () => {
-    const result = buildAnalysisPrompt(makeProblem(), [makeSubmission()]);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), [makeSubmission()]);
     expect(result).toContain("Two Sum");
   });
 
   it("strips HTML from the problem description", () => {
-    const result = buildAnalysisPrompt(
+    const result = buildSingleProblemAnalysisPrompt(
       makeProblem({ description: "<p>Hello &amp; <strong>world</strong></p>" }),
       [makeSubmission()]
     );
@@ -42,7 +42,7 @@ describe("buildAnalysisPrompt", () => {
       makeSubmission({ timestamp: 1700000001000, code: "attempt_1" }),
       makeSubmission({ timestamp: 1700000003000, code: "attempt_3" }),
     ];
-    const result = buildAnalysisPrompt(makeProblem(), submissions);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), submissions);
 
     const idx1 = result.indexOf("attempt_1");
     const idx2 = result.indexOf("attempt_2");
@@ -56,7 +56,7 @@ describe("buildAnalysisPrompt", () => {
       makeSubmission({ status: "Wrong Answer" }),
       makeSubmission({ status: "Accepted", timestamp: 1700000001000 }),
     ];
-    const result = buildAnalysisPrompt(makeProblem(), submissions);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), submissions);
     expect(result).toContain("solved this problem");
     expect(result).toContain("improvements");
   });
@@ -66,7 +66,7 @@ describe("buildAnalysisPrompt", () => {
       makeSubmission({ status: "Wrong Answer" }),
       makeSubmission({ status: "Time Limit Exceeded", timestamp: 1700000001000 }),
     ];
-    const result = buildAnalysisPrompt(makeProblem(), submissions);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), submissions);
     expect(result).toContain("not yet solved");
     expect(result).toContain("hint");
   });
@@ -76,14 +76,14 @@ describe("buildAnalysisPrompt", () => {
       runtime: "45 ms",
       memory: "16.2 MB",
     });
-    const result = buildAnalysisPrompt(makeProblem(), [submission]);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), [submission]);
     expect(result).toContain("Runtime: 45 ms");
     expect(result).toContain("Memory: 16.2 MB");
   });
 
   it("omits runtime/memory lines when not provided", () => {
     const submission = makeSubmission({ runtime: undefined, memory: undefined });
-    const result = buildAnalysisPrompt(makeProblem(), [submission]);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), [submission]);
     expect(result).not.toContain("Runtime:");
     expect(result).not.toContain("Memory:");
   });
@@ -93,13 +93,13 @@ describe("buildAnalysisPrompt", () => {
       makeSubmission({ timestamp: 1700000001000 }),
       makeSubmission({ timestamp: 1700000002000 }),
     ];
-    const result = buildAnalysisPrompt(makeProblem(), submissions);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), submissions);
     expect(result).toContain("Attempt 1");
     expect(result).toContain("Attempt 2");
   });
 
   it("uses singular 'attempt' in task section for single submission", () => {
-    const result = buildAnalysisPrompt(makeProblem(), [makeSubmission()]);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), [makeSubmission()]);
     expect(result).toContain("their 1 attempt.");
   });
 
@@ -108,7 +108,7 @@ describe("buildAnalysisPrompt", () => {
       makeSubmission({ timestamp: 1700000001000 }),
       makeSubmission({ timestamp: 1700000002000 }),
     ];
-    const result = buildAnalysisPrompt(makeProblem(), submissions);
+    const result = buildSingleProblemAnalysisPrompt(makeProblem(), submissions);
     expect(result).toContain("their 2 attempts.");
   });
 });

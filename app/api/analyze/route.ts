@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   SubmissionForAnalysis,
   ProblemForAnalysis,
-} from "@/lib/ai-shared";
-import { analyzeSubmissionHistory as analyzeWithGemini } from "@/lib/gemini";
-import { analyzeSubmissionHistory as analyzeWithClaude } from "@/lib/claude";
-import { analyzeSubmissionHistory as analyzeWithOpenAI } from "@/lib/openai";
+} from "@/lib/ai-clients/ai-helpers";
+import { analyzeSubmissionHistory as analyzeWithGemini } from "@/lib/ai-clients/gemini";
+import { analyzeSubmissionHistory as analyzeWithClaude } from "@/lib/ai-clients/claude";
+import { analyzeSubmissionHistory as analyzeWithOpenAI } from "@/lib/ai-clients/openai";
 import type { DeploymentMode, AIProvider } from "../config/route";
 
 function getEnvKey(provider: AIProvider): string | undefined {

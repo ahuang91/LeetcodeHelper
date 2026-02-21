@@ -66,6 +66,7 @@ export function formatMarkdown(text: string): string {
   result = result.replace(/`([^`]+)`/g, '<code class="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-sm">$1</code>');
 
   // Headers with distinct styling
+  result = result.replace(/^#### (.*$)/gm, '<h4 class="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-2">$1</h4>');
   result = result.replace(/^### (.*$)/gm, '<h3 class="text-lg font-semibold text-zinc-800 dark:text-zinc-200 mt-6 mb-2">$1</h3>');
   result = result.replace(/^## (.*$)/gm, '<h2 class="text-xl font-bold text-zinc-900 dark:text-zinc-100 mt-8 mb-3">$1</h2>');
   result = result.replace(/^# (.*$)/gm, '<h1 class="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mt-8 mb-4">$1</h1>');

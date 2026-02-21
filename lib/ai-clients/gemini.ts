@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   SubmissionForAnalysis,
   ProblemForAnalysis,
-  buildAnalysisPrompt,
-} from "./ai-shared";
+  buildSingleProblemAnalysisPrompt,
+} from "./ai-helpers";
 
 export type { SubmissionForAnalysis, ProblemForAnalysis };
 
@@ -26,7 +26,7 @@ export async function analyzeSubmissionHistory(
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-  const prompt = buildAnalysisPrompt(problem, submissions);
+  const prompt = buildSingleProblemAnalysisPrompt(problem, submissions);
   const result = await model.generateContent(prompt);
   const response = await result.response;
   return response.text();

@@ -102,7 +102,7 @@ describe("POST /api/analyze", () => {
   });
 
   it("routes to claude provider", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/claude");
+    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/claude");
     vi.mocked(analyzeSubmissionHistory).mockResolvedValue("Claude analysis");
 
     const { data, status } = await callPOST({
