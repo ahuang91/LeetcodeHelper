@@ -2,7 +2,9 @@ import OpenAI from "openai";
 import {
   SubmissionForAnalysis,
   ProblemForAnalysis,
+  ProblemWithSubmissions,
   buildSingleProblemAnalysisPrompt,
+  buildCategoryAnalysisPrompt,
 } from "./ai-helpers";
 
 export type { SubmissionForAnalysis, ProblemForAnalysis };
@@ -38,6 +40,23 @@ export async function analyzeSubmissionHistory(
         content: prompt,
       },
     ],
+  });
+
+  return response.choices[0]?.message?.content || "Unable to generate analysis.";
+}
+
+export async function analyzeCategorySubmissions(
+  topicName: string,
+  problems: ProblemWithSubmissions[],
+  apiKey: string
+): Promise<string> {
+  const client = new OpenAI({ apiKey });
+
+  const prompt = buildCategoryAnalysisPrompt(topicName, problems);
+  const response = await client.chat.completions.create({
+    model: "gpt-5-mini",
+    max_tokens: 4096,
+    messages: [{ role: "user", content: prompt }],
   });
 
   return response.choices[0]?.message?.content || "Unable to generate analysis.";

@@ -66,11 +66,20 @@ export interface AnalysisHistoryCache {
   allAnalyzedSubmissionIds: number[]; // Union of all submission IDs ever analyzed
 }
 
+export interface CategoryAnalysisEntry {
+  analysis: string;
+  fetchedAt: number;
+  provider?: AIProvider;
+  problemCount: number;
+  filteredMode: "all" | "failed";
+}
+
 interface CacheState {
   submissionsList: SubmissionsListCache;
   lastSelectedTimeWindow: TimeWindow;
   problemSubmissions: Record<string, ProblemSubmissionsCache>;
   analysisHistory: Record<string, AnalysisHistoryCache>;
+  categoryAnalysis: Record<string, CategoryAnalysisEntry>;
 }
 
 interface CacheContextValue {
@@ -80,6 +89,7 @@ interface CacheContextValue {
   getLastSelectedTimeWindow: () => TimeWindow;
   getProblemSubmissions: (slug: string) => ProblemSubmissionsCache | null;
   getAnalysisHistory: (slug: string) => AnalysisHistoryCache | null;
+  getCategoryAnalysis: (topicSlug: string) => CategoryAnalysisEntry | null;
 
   // Setters
   setSubmissionsList: (
@@ -90,6 +100,7 @@ interface CacheContextValue {
   setLastSelectedTimeWindow: (timeWindow: TimeWindow) => void;
   setProblemSubmissions: (slug: string, data: CachedSubmissionWithCode[]) => void;
   addAnalysis: (slug: string, analysis: string, submissionIds: number[], provider?: AIProvider) => void;
+  setCategoryAnalysis: (topicSlug: string, entry: CategoryAnalysisEntry) => void;
 
   // Clear
   clearCache: () => void;
@@ -114,6 +125,7 @@ const defaultCacheState: CacheState = {
   lastSelectedTimeWindow: "week",
   problemSubmissions: {},
   analysisHistory: {},
+  categoryAnalysis: {},
 };
 
 const CacheContext = createContext<CacheContextValue | null>(null);
@@ -263,6 +275,26 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     [state.analysisHistory]
   );
 
+  const getCategoryAnalysis = useCallback(
+    (topicSlug: string): CategoryAnalysisEntry | null => {
+      return state.categoryAnalysis[topicSlug] || null;
+    },
+    [state.categoryAnalysis]
+  );
+
+  const setCategoryAnalysis = useCallback(
+    (topicSlug: string, entry: CategoryAnalysisEntry) => {
+      setState((prev) => ({
+        ...prev,
+        categoryAnalysis: {
+          ...prev.categoryAnalysis,
+          [topicSlug]: entry,
+        },
+      }));
+    },
+    []
+  );
+
   const clearCache = useCallback(() => {
     setState(defaultCacheState);
     if (typeof window !== "undefined") {
@@ -280,6 +312,8 @@ export function CacheProvider({ children }: { children: ReactNode }) {
     setLastSelectedTimeWindow,
     setProblemSubmissions,
     addAnalysis,
+    getCategoryAnalysis,
+    setCategoryAnalysis,
     clearCache,
   };
 

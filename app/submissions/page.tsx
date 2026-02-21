@@ -424,15 +424,44 @@ export default function SubmissionsPage() {
                         ({selectedTopic.problems.length} {selectedTopic.problems.length === 1 ? "problem" : "problems"})
                       </span>
                     </h2>
-                    <button
-                      onClick={closeTopicModal}
-                      aria-label="Close"
-                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const topicSlug = selectedTopic.tag.slug;
+                          const data = {
+                            topicName: selectedTopic.tag.name,
+                            problems: selectedTopic.problems.map((p) => ({
+                              title: p.title,
+                              titleSlug: p.titleSlug,
+                              difficulty: p.difficulty,
+                              solved: p.solved,
+                              hasFailed: p.submissions.some(
+                                (s) => s.statusDisplay !== "Accepted"
+                              ),
+                              submissionCount: p.submissions.length,
+                              submissionIds: p.submissions.map((s) => s.id),
+                            })),
+                          };
+                          sessionStorage.setItem(
+                            `category-analyze-${topicSlug}`,
+                            JSON.stringify(data)
+                          );
+                          router.push(`/analyze/category/${topicSlug}`);
+                        }}
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-1.5 px-3 rounded transition-colors"
+                      >
+                        Analyze Category
+                      </button>
+                      <button
+                        onClick={closeTopicModal}
+                        aria-label="Close"
+                        className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Modal body */}

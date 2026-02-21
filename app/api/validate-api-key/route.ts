@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateApiKey } from "@/lib/gemini";
+import { validateApiKey } from "@/lib/ai-clients/gemini";
 
 export async function POST(request: NextRequest) {
   try {

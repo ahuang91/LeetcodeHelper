@@ -2,7 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   SubmissionForAnalysis,
   ProblemForAnalysis,
+  ProblemWithSubmissions,
   buildSingleProblemAnalysisPrompt,
+  buildCategoryAnalysisPrompt,
 } from "./ai-helpers";
 
 export type { SubmissionForAnalysis, ProblemForAnalysis };
@@ -38,6 +40,24 @@ export async function analyzeSubmissionHistory(
         content: prompt,
       },
     ],
+  });
+
+  const textBlock = response.content.find((block) => block.type === "text");
+  return textBlock ? textBlock.text : "Unable to generate analysis.";
+}
+
+export async function analyzeCategorySubmissions(
+  topicName: string,
+  problems: ProblemWithSubmissions[],
+  apiKey: string
+): Promise<string> {
+  const client = new Anthropic({ apiKey });
+
+  const prompt = buildCategoryAnalysisPrompt(topicName, problems);
+  const response = await client.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 4096,
+    messages: [{ role: "user", content: prompt }],
   });
 
   const textBlock = response.content.find((block) => block.type === "text");

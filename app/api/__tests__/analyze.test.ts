@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the AI provider modules
-vi.mock("@/lib/gemini", () => ({
+vi.mock("@/lib/ai-clients/gemini", () => ({
   analyzeSubmissionHistory: vi.fn(),
 }));
-vi.mock("@/lib/claude", () => ({
+vi.mock("@/lib/ai-clients/claude", () => ({
   analyzeSubmissionHistory: vi.fn(),
 }));
-vi.mock("@/lib/openai", () => ({
+vi.mock("@/lib/ai-clients/openai", () => ({
   analyzeSubmissionHistory: vi.fn(),
 }));
 
@@ -90,7 +90,7 @@ describe("POST /api/analyze", () => {
   });
 
   it("routes to gemini provider and returns analysis", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/gemini");
+    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/gemini");
     vi.mocked(analyzeSubmissionHistory).mockResolvedValue(
       "Great job on Two Sum!"
     );
@@ -115,7 +115,7 @@ describe("POST /api/analyze", () => {
   });
 
   it("routes to openai provider", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/openai");
+    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/openai");
     vi.mocked(analyzeSubmissionHistory).mockResolvedValue("OpenAI analysis");
 
     const { data, status } = await callPOST({
@@ -128,7 +128,7 @@ describe("POST /api/analyze", () => {
   });
 
   it("returns 500 when provider throws an error", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/gemini");
+    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/gemini");
     vi.mocked(analyzeSubmissionHistory).mockRejectedValue(
       new Error("API rate limit")
     );
