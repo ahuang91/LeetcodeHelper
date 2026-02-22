@@ -137,7 +137,7 @@ function loadFromStorage(): CacheState {
   try {
     const stored = sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      return { ...defaultCacheState, ...JSON.parse(stored) };
     }
   } catch {
     // Ignore parsing errors
