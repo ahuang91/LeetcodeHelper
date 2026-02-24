@@ -12,6 +12,9 @@ import { useDraggableDivider } from "@/lib/hooks/use-draggable-divider";
 import { formatMarkdown } from "@/lib/markdown";
 import type { AIProvider, AppConfig } from "@/app/api/config/route";
 import type { ProblemWithSubmissions } from "@/lib/ai-clients/ai-helpers";
+import { ProblemDefinition } from "@/app/components/ProblemDefinition";
+import { SubmissionsList } from "@/app/components/SubmissionsList";
+import type { TopicTag } from "@/app/components/ProblemDefinition";
 
 interface CategoryProblemEntry {
   title: string;
@@ -26,6 +29,11 @@ interface CategoryProblemEntry {
 interface CategoryStoredData {
   topicName: string;
   problems: CategoryProblemEntry[];
+}
+
+interface LoadedProblemDetail {
+  content: string;
+  topicTags: TopicTag[];
 }
 
 type FilterMode = "all" | "failed";
@@ -52,6 +60,14 @@ export default function CategoryAnalyzePage() {
   const [error, setError] = useState("");
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
   const [config, setConfig] = useState<AppConfig | null>(null);
+
+  // Per-problem expansion state
+  const [expandedProblems, setExpandedProblems] = useState<Set<string>>(new Set());
+  const [expandedDefinitions, setExpandedDefinitions] = useState<Set<string>>(new Set());
+  const [expandedSubmissionSections, setExpandedSubmissionSections] = useState<Set<string>>(new Set());
+  const [expandedSubmissionIds, setExpandedSubmissionIds] = useState<Map<string, number | null>>(new Map());
+  const [problemDetails, setProblemDetails] = useState<Map<string, LoadedProblemDetail>>(new Map());
+  const [loadingProblemSlugs, setLoadingProblemSlugs] = useState<Set<string>>(new Set());
 
   const { leftPaneWidth, handleMouseDown } = useDraggableDivider({
     containerId: "split-container",
@@ -145,6 +161,106 @@ export default function CategoryAnalyzePage() {
     }
   };
 
+  const fetchProblemData = async (titleSlug: string) => {
+    const credentials = getCredentials();
+    if (!credentials) return;
+
+    setLoadingProblemSlugs((prev) => new Set([...prev, titleSlug]));
+    try {
+      const problem = problems.find((p) => p.titleSlug === titleSlug);
+      const cachedSubs = cache.getProblemSubmissions(titleSlug);
+      const cachedIds = cachedSubs?.data?.map((s) => s.id) ?? [];
+
+      const fetchSubs = !cachedSubs
+        ? fetch(`/api/submissions/${titleSlug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionCookie: credentials.sessionCookie,
+              ids: problem?.submissionIds,
+              cachedIds,
+            }),
+          })
+        : null;
+
+      const [problemRes, subsRes] = await Promise.all([
+        fetch(`/api/problem/${titleSlug}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionCookie: credentials.sessionCookie }),
+        }),
+        fetchSubs,
+      ]);
+
+      if (problemRes.ok) {
+        const details = await problemRes.json();
+        setProblemDetails((prev) =>
+          new Map(prev).set(titleSlug, {
+            content: details.content,
+            topicTags: details.topicTags ?? [],
+          })
+        );
+      }
+
+      if (subsRes?.ok) {
+        const data = await subsRes.json();
+        const merged = mergeSubmissions([], data.submissions, data.allIds);
+        cache.setProblemSubmissions(titleSlug, merged);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingProblemSlugs((prev) => {
+        const next = new Set(prev);
+        next.delete(titleSlug);
+        return next;
+      });
+    }
+  };
+
+  const handleToggleProblem = (titleSlug: string) => {
+    setExpandedProblems((prev) => {
+      const next = new Set(prev);
+      if (next.has(titleSlug)) {
+        next.delete(titleSlug);
+      } else {
+        next.add(titleSlug);
+        // Auto-expand submissions section, fetch data if needed
+        setExpandedSubmissionSections((s) => new Set([...s, titleSlug]));
+        if (!problemDetails.has(titleSlug)) {
+          fetchProblemData(titleSlug);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleToggleDefinition = (titleSlug: string) => {
+    setExpandedDefinitions((prev) => {
+      const next = new Set(prev);
+      if (next.has(titleSlug)) next.delete(titleSlug);
+      else next.add(titleSlug);
+      return next;
+    });
+  };
+
+  const handleToggleSubmissionSection = (titleSlug: string) => {
+    setExpandedSubmissionSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(titleSlug)) next.delete(titleSlug);
+      else next.add(titleSlug);
+      return next;
+    });
+  };
+
+  const handleSubmissionClick = (titleSlug: string, submissionId: number) => {
+    setExpandedSubmissionIds((prev) => {
+      const next = new Map(prev);
+      next.set(titleSlug, prev.get(titleSlug) === submissionId ? null : submissionId);
+      return next;
+    });
+  };
+
   const handleAnalyze = async () => {
     const credentials = getCredentials();
     if (!credentials) {
@@ -194,6 +310,16 @@ export default function CategoryAnalyzePage() {
             subsDetail.allIds
           );
           cache.setProblemSubmissions(p.titleSlug, merged);
+
+          // Store problem details for the UI
+          if (problemDetail) {
+            setProblemDetails((prev) =>
+              new Map(prev).set(p.titleSlug, {
+                content: problemDetail.content ?? "",
+                topicTags: problemDetail.topicTags ?? [],
+              })
+            );
+          }
 
           fetched += 1;
           setFetchProgress({ fetched, total: filteredProblems.length });
@@ -363,52 +489,135 @@ export default function CategoryAnalyzePage() {
                   No problems match the current filter.
                 </p>
               ) : (
-                <div className="space-y-1">
-                  {filteredProblems.map((p) => (
-                    <div
-                      key={p.titleSlug}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-white dark:bg-zinc-800"
-                    >
-                      <span className="text-base leading-none">
-                        {DIFFICULTY_EMOJI[p.difficulty] ?? "❓"}
-                      </span>
-                      <span className="flex-1 text-sm text-zinc-900 dark:text-zinc-100 truncate">
-                        {p.title}
-                      </span>
-                      <span className="text-xs text-zinc-400 flex-shrink-0">
-                        {p.submissionCount} sub{p.submissionCount !== 1 ? "s" : ""}
-                      </span>
-                      {p.solved ? (
-                        <svg
-                          className="w-4 h-4 text-green-500 flex-shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                <div className="space-y-2">
+                  {filteredProblems.map((p) => {
+                    const isExpanded = expandedProblems.has(p.titleSlug);
+                    const isLoading = loadingProblemSlugs.has(p.titleSlug);
+                    const details = problemDetails.get(p.titleSlug);
+                    const submissions = cache.getProblemSubmissions(p.titleSlug)?.data ?? [];
+                    const isDefinitionExpanded = expandedDefinitions.has(p.titleSlug);
+                    const isSubmissionSectionExpanded = expandedSubmissionSections.has(p.titleSlug);
+                    const expandedSubId = expandedSubmissionIds.get(p.titleSlug) ?? null;
+
+                    return (
+                      <div
+                        key={p.titleSlug}
+                        className="rounded-lg bg-white dark:bg-zinc-800 overflow-hidden"
+                      >
+                        {/* Problem header row */}
+                        <button
+                          onClick={() => handleToggleProblem(p.titleSlug)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors text-left"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-4 h-4 text-red-400 flex-shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      )}
-                    </div>
-                  ))}
+                          <svg
+                            className={`w-4 h-4 text-zinc-400 flex-shrink-0 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span className="text-base leading-none flex-shrink-0">
+                            {DIFFICULTY_EMOJI[p.difficulty] ?? "❓"}
+                          </span>
+                          <span className="flex-1 text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                            {p.title}
+                          </span>
+                          <span className="text-xs text-zinc-400 flex-shrink-0">
+                            {p.submissionCount} sub{p.submissionCount !== 1 ? "s" : ""}
+                          </span>
+                          {p.solved ? (
+                            <svg
+                              className="w-4 h-4 text-green-500 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-4 h-4 text-red-400 flex-shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Expandable content */}
+                        {isExpanded && (
+                          <div className="px-3 pb-3 border-t border-zinc-100 dark:border-zinc-700 space-y-2 pt-2">
+                            {isLoading ? (
+                              <div className="flex items-center gap-2 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500 flex-shrink-0" />
+                                Loading problem data...
+                              </div>
+                            ) : (
+                              <>
+                                {/* Problem Definition */}
+                                {details ? (
+                                  <ProblemDefinition
+                                    content={details.content}
+                                    topicTags={details.topicTags}
+                                    expanded={isDefinitionExpanded}
+                                    onToggle={() => handleToggleDefinition(p.titleSlug)}
+                                  />
+                                ) : (
+                                  <p className="text-xs text-zinc-400 py-1 px-3">
+                                    Problem definition unavailable — run analysis to load it.
+                                  </p>
+                                )}
+
+                                {/* Submissions section */}
+                                <div>
+                                  <button
+                                    onClick={() => handleToggleSubmissionSection(p.titleSlug)}
+                                    className="w-full flex items-center gap-2 p-3 bg-white dark:bg-zinc-800 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                                  >
+                                    <svg
+                                      className={`w-4 h-4 text-zinc-500 transition-transform ${isSubmissionSectionExpanded ? "rotate-90" : ""}`}
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                                      Submissions
+                                    </span>
+                                    <span className="text-xs text-zinc-400">
+                                      ({submissions.length})
+                                    </span>
+                                  </button>
+
+                                  {isSubmissionSectionExpanded && (
+                                    <div className="mt-2 space-y-2">
+                                      {submissions.length === 0 ? (
+                                        <p className="text-xs text-zinc-400 px-3 py-1">
+                                          No submissions loaded — run analysis to load them.
+                                        </p>
+                                      ) : (
+                                        <SubmissionsList
+                                          submissions={submissions}
+                                          expandedSubmissionId={expandedSubId}
+                                          onSubmissionClick={(id) =>
+                                            handleSubmissionClick(p.titleSlug, id)
+                                          }
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

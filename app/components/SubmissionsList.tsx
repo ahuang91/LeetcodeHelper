@@ -10,12 +10,12 @@ import type { CachedSubmissionWithCode } from "@/lib/cache-context";
 
 interface SubmissionsListProps {
   submissions: CachedSubmissionWithCode[];
-  selectedSubmissionIds: Set<number>;
-  analyzedSubmissionIds: Set<number>;
+  selectedSubmissionIds?: Set<number>;
+  analyzedSubmissionIds?: Set<number>;
   expandedSubmissionId: number | null;
-  onToggleSelection: (submissionId: number) => void;
+  onToggleSelection?: (submissionId: number) => void;
   onSubmissionClick: (submissionId: number) => void;
-  submissionRefs: React.MutableRefObject<Map<number, HTMLDivElement>>;
+  submissionRefs?: React.MutableRefObject<Map<number, HTMLDivElement>>;
 }
 
 export function SubmissionsList({
@@ -30,13 +30,14 @@ export function SubmissionsList({
   return (
     <>
       {submissions.map((sub, index) => {
-        const isSelected = selectedSubmissionIds.has(sub.id);
-        const wasAnalyzed = analyzedSubmissionIds.has(sub.id);
+        const isSelected = selectedSubmissionIds?.has(sub.id) ?? false;
+        const wasAnalyzed = analyzedSubmissionIds?.has(sub.id) ?? false;
 
         return (
           <div
             key={sub.id}
             ref={(el) => {
+              if (!submissionRefs) return;
               if (el) {
                 submissionRefs.current.set(sub.id, el);
               } else {
@@ -52,16 +53,18 @@ export function SubmissionsList({
                   : "hover:bg-zinc-50 dark:hover:bg-zinc-700"
               }`}
             >
-              {/* Checkbox */}
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={(e) => {
-                  e.stopPropagation();
-                  onToggleSelection(sub.id);
-                }}
-                className="w-4 h-4 rounded border-zinc-300 text-orange-500 focus:ring-orange-500 cursor-pointer"
-              />
+              {/* Checkbox — only shown in selection mode */}
+              {selectedSubmissionIds !== undefined && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleSelection?.(sub.id);
+                  }}
+                  className="w-4 h-4 rounded border-zinc-300 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                />
+              )}
               {/* Expand/collapse button */}
               <button
                 onClick={() => onSubmissionClick(sub.id)}
