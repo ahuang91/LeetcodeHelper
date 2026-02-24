@@ -37,7 +37,7 @@ export interface CachedSubmissionWithCode {
   code: string;
 }
 
-export type TimeWindow = "week" | "month" | "year";
+export type TimeWindow = "week" | "month" | "3months" | "6months" | "year";
 
 export interface TimeWindowCache {
   data: CachedSubmission[] | null;
@@ -117,6 +117,8 @@ const defaultTimeWindowCache: TimeWindowCache = {
 const defaultSubmissionsList: SubmissionsListCache = {
   week: { ...defaultTimeWindowCache },
   month: { ...defaultTimeWindowCache },
+  "3months": { ...defaultTimeWindowCache },
+  "6months": { ...defaultTimeWindowCache },
   year: { ...defaultTimeWindowCache },
 };
 

@@ -47,6 +47,8 @@ type TimeWindow = CacheTimeWindow;
 const TIME_WINDOWS: Record<TimeWindow, { label: string; ms: number }> = {
   week: { label: "Last Week", ms: 7 * 24 * 60 * 60 * 1000 },
   month: { label: "Last Month", ms: 30 * 24 * 60 * 60 * 1000 },
+  "3months": { label: "Last 3 Months", ms: 90 * 24 * 60 * 60 * 1000 },
+  "6months": { label: "Last 6 Months", ms: 180 * 24 * 60 * 60 * 1000 },
   year: { label: "Last Year", ms: 365 * 24 * 60 * 60 * 1000 },
 };
 
