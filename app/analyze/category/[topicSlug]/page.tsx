@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { DIFFICULTY_EMOJI } from "@/lib/status";
 import { useCache } from "@/lib/cache-context";
+import { mergeSubmissions } from "@/lib/submissions";
+import { formatRelativeTime } from "@/lib/date-utils";
 import { getCredentials } from "@/lib/credentials-client";
 import { useDraggableDivider } from "@/lib/hooks/use-draggable-divider";
 import { formatMarkdown } from "@/lib/markdown";
@@ -38,6 +40,8 @@ export default function CategoryAnalyzePage() {
   const [topicName, setTopicName] = useState("");
   const [problems, setProblems] = useState<CategoryProblemEntry[]>([]);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [fetchProgress, setFetchProgress] = useState<{
     fetched: number;
@@ -98,6 +102,49 @@ export default function CategoryAnalyzePage() {
   const filteredProblems =
     filterMode === "all" ? problems : problems.filter((p) => p.hasFailed);
 
+  const refreshProblems = async () => {
+    const credentials = getCredentials();
+    if (!credentials || refreshing) return;
+
+    setRefreshing(true);
+    try {
+      const updatedProblems = await Promise.all(
+        problems.map(async (p) => {
+          const cachedSubs = cache.getProblemSubmissions(p.titleSlug);
+          const cachedIds = cachedSubs?.data?.map((s) => s.id) ?? [];
+          try {
+            const res = await fetch(`/api/submissions/${p.titleSlug}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ sessionCookie: credentials.sessionCookie, cachedIds }),
+            });
+            if (res.status === 401) {
+              router.push("/");
+              return p;
+            }
+            if (!res.ok) return p;
+            const data = await res.json();
+            const merged = mergeSubmissions(cachedSubs?.data ?? [], data.submissions, data.allIds);
+            cache.setProblemSubmissions(p.titleSlug, merged);
+            return {
+              ...p,
+              submissionIds: (data.allIds as number[]).map(String),
+              submissionCount: data.allIds.length,
+              solved: merged.some((s) => s.status === "Accepted"),
+              hasFailed: merged.some((s) => s.status !== "Accepted"),
+            };
+          } catch {
+            return p;
+          }
+        })
+      );
+      setProblems(updatedProblems);
+      setLastRefreshed(Date.now());
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleAnalyze = async () => {
     const credentials = getCredentials();
     if (!credentials) {
@@ -114,6 +161,9 @@ export default function CategoryAnalyzePage() {
       let fetched = 0;
       const problemData = await Promise.all(
         filteredProblems.map(async (p) => {
+          const cachedSubs = cache.getProblemSubmissions(p.titleSlug);
+          const cachedIds = cachedSubs?.data?.map((s) => s.id) ?? [];
+
           const [problemRes, submissionsRes] = await Promise.all([
             fetch(`/api/problem/${p.titleSlug}`, {
               method: "POST",
@@ -128,6 +178,7 @@ export default function CategoryAnalyzePage() {
               body: JSON.stringify({
                 sessionCookie: credentials.sessionCookie,
                 ids: p.submissionIds,
+                cachedIds,
               }),
             }),
           ]);
@@ -135,7 +186,14 @@ export default function CategoryAnalyzePage() {
           const problemDetail = problemRes.ok ? await problemRes.json() : null;
           const subsDetail = submissionsRes.ok
             ? await submissionsRes.json()
-            : { submissions: [] };
+            : { submissions: [], allIds: [] };
+
+          const merged = mergeSubmissions(
+            cachedSubs?.data ?? [],
+            subsDetail.submissions,
+            subsDetail.allIds
+          );
+          cache.setProblemSubmissions(p.titleSlug, merged);
 
           fetched += 1;
           setFetchProgress({ fetched, total: filteredProblems.length });
@@ -145,23 +203,14 @@ export default function CategoryAnalyzePage() {
               title: p.title,
               description: problemDetail?.content ?? "",
             },
-            submissions: (subsDetail.submissions ?? []).map(
-              (s: {
-                code: string;
-                language: string;
-                status: string;
-                timestamp: number;
-                runtime?: string;
-                memory?: string;
-              }) => ({
-                code: s.code,
-                language: s.language,
-                status: s.status,
-                timestamp: s.timestamp,
-                runtime: s.runtime,
-                memory: s.memory,
-              })
-            ),
+            submissions: merged.map((s) => ({
+              code: s.code,
+              language: s.language,
+              status: s.status,
+              timestamp: s.timestamp,
+              runtime: s.runtime,
+              memory: s.memory,
+            })),
             solved: p.solved,
           } satisfies ProblemWithSubmissions;
         })
@@ -258,9 +307,31 @@ export default function CategoryAnalyzePage() {
         >
           <div className="p-6">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 mb-3">
-                Problems
-              </h2>
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                  Problems
+                </h2>
+                {lastRefreshed && (
+                  <span className="text-xs text-zinc-400">
+                    · {formatRelativeTime(lastRefreshed)}
+                  </span>
+                )}
+                <button
+                  onClick={refreshProblems}
+                  disabled={refreshing || analyzing}
+                  title="Refresh submissions"
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
+                >
+                  <svg
+                    className={`w-4 h-4 ${refreshing ? "animate-spin text-orange-500" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </div>
 
               {/* Filter toggle */}
               <div className="flex rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 w-fit mb-4">
