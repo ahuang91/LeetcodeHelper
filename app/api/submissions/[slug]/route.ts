@@ -23,7 +23,7 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { sessionCookie, ids } = body;
+    const { sessionCookie, ids, cachedIds } = body;
 
     if (!sessionCookie) {
       return NextResponse.json(
@@ -36,6 +36,9 @@ export async function POST(
 
     // Check for specific submission IDs
     const submissionIds: string[] | null = ids || null;
+
+    // IDs the client already has cached — skip fetching details for these
+    const cachedIdSet = new Set<number>((cachedIds || []).map(Number));
 
     const client = await createLeetCodeClient(sessionCookie);
 
@@ -53,9 +56,16 @@ export async function POST(
       submissionsToFetch = submissions.map((sub) => ({ id: sub.id }));
     }
 
-    // Fetch code for each submission
+    const allIds = submissionsToFetch.map((s) => s.id);
+
+    // Only fetch details for submissions not already cached on the client
+    const idsNeedingDetails = submissionsToFetch.filter(
+      (s) => !cachedIdSet.has(s.id)
+    );
+
+    // Fetch code for each non-cached submission
     const submissionsWithCode = await Promise.all(
-      submissionsToFetch.map(async (sub) => {
+      idsNeedingDetails.map(async (sub) => {
         try {
           const detail = await fetchSubmissionDetail(client, sub.id);
           return {
@@ -81,6 +91,7 @@ export async function POST(
 
     return NextResponse.json({
       submissions: validSubmissions,
+      allIds,
     });
   } catch (error) {
     console.error("Error fetching submissions for problem:", error);
