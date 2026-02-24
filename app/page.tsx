@@ -297,13 +297,24 @@ export default function Home() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
-          >
-            {loading ? "Validating..." : existingUser ? "Update & View Submissions" : "Save & View Submissions"}
-          </button>
+          <div className="flex gap-3">
+            {existingUser && (
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="flex-1 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-700 dark:text-zinc-200 font-medium py-3 px-4 rounded-lg transition-colors"
+              >
+                Back
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+            >
+              {loading ? "Validating..." : existingUser ? "Update" : "Save & View Submissions"}
+            </button>
+          </div>
         </form>
       </main>
     </div>
