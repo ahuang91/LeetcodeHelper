@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
+import type { AIProvider, DeploymentMode } from "@/lib/ai-clients/router";
 
-export type DeploymentMode = "single-user" | "multi-user";
-export type AIProvider = "gemini" | "claude" | "openai";
+export type { DeploymentMode, AIProvider };
 
 export interface AppConfig {
   deploymentMode: DeploymentMode;

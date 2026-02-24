@@ -1,17 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock the AI provider modules
-vi.mock("@/lib/ai-clients/gemini", () => ({
-  analyzeSubmissionHistory: vi.fn(),
-}));
-vi.mock("@/lib/ai-clients/claude", () => ({
-  analyzeSubmissionHistory: vi.fn(),
-}));
-vi.mock("@/lib/ai-clients/openai", () => ({
-  analyzeSubmissionHistory: vi.fn(),
-}));
+vi.mock("@/lib/ai-clients/router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai-clients/router")>();
+  return { ...actual, analyzeSubmissions: vi.fn() };
+});
 
-// Mock next/server
 vi.mock("next/server", () => ({
   NextRequest: class {
     private body: unknown;
@@ -47,24 +40,17 @@ const validBody = {
 describe("POST /api/analyze", () => {
   beforeEach(() => {
     vi.resetModules();
-    delete process.env.DEPLOYMENT_MODE;
-    delete process.env.GEMINI_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    delete process.env.OPENAI_API_KEY;
   });
 
   async function callPOST(body: unknown) {
     const { POST } = await import("../analyze/route");
-    // Create a mock NextRequest
     const request = { json: async () => body } as any;
     const response = await POST(request);
     return { data: await response.json(), status: response.status };
   }
 
   it("returns 400 when problem is missing", async () => {
-    const { data, status } = await callPOST({
-      submissions: validBody.submissions,
-    });
+    const { data, status } = await callPOST({ submissions: validBody.submissions });
     expect(status).toBe(400);
     expect(data.error).toContain("required");
   });
@@ -78,60 +64,37 @@ describe("POST /api/analyze", () => {
     expect(data.error).toContain("required");
   });
 
-  it("returns 400 when no API key is available", async () => {
+  it("returns 400 when router throws ApiKeyError", async () => {
+    const { analyzeSubmissions, ApiKeyError } = await import("@/lib/ai-clients/router");
+    vi.mocked(analyzeSubmissions).mockRejectedValue(new ApiKeyError("gemini"));
+
     const { data, status } = await callPOST({
       problem: validBody.problem,
       submissions: validBody.submissions,
       provider: "gemini",
-      // No API key provided
     });
     expect(status).toBe(400);
     expect(data.error).toContain("API key");
   });
 
-  it("routes to gemini provider and returns analysis", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/gemini");
-    vi.mocked(analyzeSubmissionHistory).mockResolvedValue(
-      "Great job on Two Sum!"
-    );
+  it("returns analysis on success", async () => {
+    const { analyzeSubmissions } = await import("@/lib/ai-clients/router");
+    vi.mocked(analyzeSubmissions).mockResolvedValue("Great job on Two Sum!");
 
     const { data, status } = await callPOST(validBody);
     expect(status).toBe(200);
     expect(data.analysis).toBe("Great job on Two Sum!");
-    expect(analyzeSubmissionHistory).toHaveBeenCalled();
-  });
-
-  it("routes to claude provider", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/claude");
-    vi.mocked(analyzeSubmissionHistory).mockResolvedValue("Claude analysis");
-
-    const { data, status } = await callPOST({
-      ...validBody,
-      provider: "claude",
-      anthropicApiKey: "test-key",
-    });
-    expect(status).toBe(200);
-    expect(data.analysis).toBe("Claude analysis");
-  });
-
-  it("routes to openai provider", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/openai");
-    vi.mocked(analyzeSubmissionHistory).mockResolvedValue("OpenAI analysis");
-
-    const { data, status } = await callPOST({
-      ...validBody,
-      provider: "openai",
-      openaiApiKey: "test-key",
-    });
-    expect(status).toBe(200);
-    expect(data.analysis).toBe("OpenAI analysis");
-  });
-
-  it("returns 500 when provider throws an error", async () => {
-    const { analyzeSubmissionHistory } = await import("@/lib/ai-clients/gemini");
-    vi.mocked(analyzeSubmissionHistory).mockRejectedValue(
-      new Error("API rate limit")
+    expect(analyzeSubmissions).toHaveBeenCalledWith(
+      "gemini",
+      { geminiApiKey: "test-gemini-key", anthropicApiKey: undefined, openaiApiKey: undefined },
+      validBody.problem,
+      validBody.submissions
     );
+  });
+
+  it("returns 500 when router throws a generic error", async () => {
+    const { analyzeSubmissions } = await import("@/lib/ai-clients/router");
+    vi.mocked(analyzeSubmissions).mockRejectedValue(new Error("API rate limit"));
 
     const { data, status } = await callPOST(validBody);
     expect(status).toBe(500);
