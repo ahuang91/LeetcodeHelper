@@ -1,24 +1,25 @@
-# LeetCode Helper
+# LeetHelper
 
 A web app that analyzes your LeetCode submission history using AI to provide personalized feedback on your problem-solving journey.
 
 ## Features
 
-- View your recent LeetCode submissions grouped by problem
-- Analyze your submission history with Gemini, Claude, or OpenAI to understand:
+- View your recent LeetCode submissions grouped by problem and topic
+- Analyze submission history with Gemini, Claude, or OpenAI to understand:
   - How your thinking evolved across attempts
   - Common mistakes and misconceptions
   - Suggestions for improvement
+- Analyze all problems in a topic category in a single AI call
 - Track which submissions you've already analyzed
-- Dark mode support
+- Supports multiple AI providers: Google Gemini, Anthropic Claude, OpenAI ChatGPT
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 18+
 - A LeetCode account
-- A Gemini API key (get one at [Google AI Studio](https://aistudio.google.com/apikey))
+- An API key for at least one supported AI provider
 
 ### Installation
 
@@ -27,16 +28,6 @@ git clone <repo-url>
 cd leethelper
 npm install
 ```
-
-### Configuration
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env.local
-```
-
-Then edit `.env.local` to configure your deployment.
 
 ### Running
 
@@ -48,49 +39,47 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Deployment Modes
 
-The app supports two deployment modes controlled by the `DEPLOYMENT_MODE` environment variable:
+The app supports two deployment modes controlled by the `DEPLOYMENT_MODE` environment variable in `.env.local`:
 
 ### Single-User Mode
 
-Best for personal use or self-hosting for yourself.
+Best for personal use or self-hosting.
 
-```bash
-# .env.local
+```env
 DEPLOYMENT_MODE=single-user
-GEMINI_API_KEY=your-api-key-here
-ANTHROPIC_API_KEY=your-api-key-here
-OPENAI_API_KEY=your-api-key-here
+GEMINI_API_KEY=your-gemini-key
+ANTHROPIC_API_KEY=your-anthropic-key
+OPENAI_API_KEY=your-openai-key
 ```
 
 In this mode:
-- The APIs key is configured server-side via environment variable
-- The API key input field is hidden on the homepage
+- API keys are configured server-side via environment variables
+- The API key input fields are hidden on the homepage
 - Users only need to enter their LeetCode credentials
 
 ### Multi-User Mode (Default)
 
 Best for deploying the app for others to use with their own API keys.
 
-```bash
-# .env.local
+```env
 DEPLOYMENT_MODE=multi-user
 ```
 
 In this mode:
 - Users provide their own API keys via the homepage
 - API keys are stored in the browser's localStorage (isolated per user)
-- Optionally set same API keys as single-user mode as a fallback for users who don't provide one
-
+- Optionally set server-side API keys as a fallback for users who don't provide one
 
 ## Tech Stack
 
-- [Next.js](https://nextjs.org/) - React framework
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [Google Generative AI](https://ai.google.dev/) - Gemini API for analysis
-- [leetcode-query](https://www.npmjs.com/package/leetcode-query) - LeetCode API client
+- [Next.js](https://nextjs.org/) — React framework (App Router)
+- [Tailwind CSS](https://tailwindcss.com/) — Styling
+- [Google Generative AI](https://ai.google.dev/) — Gemini API
+- [Anthropic SDK](https://docs.anthropic.com/) — Claude API
+- [OpenAI SDK](https://platform.openai.com/docs) — ChatGPT API
+- [leetcode-query](https://www.npmjs.com/package/leetcode-query) — LeetCode API client
 
 ## Privacy
 
-- LeetCode credentials are stored in your browser's localStorage only
-- In multi-user mode, API keys are also stored in localStorage
-- No data is sent to any server except LeetCode (for fetching submissions) and Google (for AI analysis)
+- LeetCode credentials and API keys are stored in your browser's localStorage only
+- No data is sent to any server except LeetCode (for fetching submissions) and your chosen AI provider (for analysis)
