@@ -128,6 +128,37 @@ export default function AnalyzePage() {
     }
   };
 
+  const refreshSubmissions = async () => {
+    const credentials = getCredentials();
+    if (!credentials || refreshingSubmissions) return;
+
+    setRefreshingSubmissions(true);
+    try {
+      const res = await fetch(`/api/submissions/${slug}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionCookie: credentials.sessionCookie }),
+      });
+
+      if (res.status === 401) {
+        router.push("/");
+        return;
+      }
+
+      if (res.ok) {
+        const data = await res.json();
+        const fetchedSubmissions = data.submissions;
+        setSubmissions(fetchedSubmissions);
+        setSubmissionsLastUpdated(Date.now());
+        cache.setProblemSubmissions(slug, fetchedSubmissions);
+      }
+    } catch {
+      // Silently fail — user can try again
+    } finally {
+      setRefreshingSubmissions(false);
+    }
+  };
+
   useEffect(() => {
     async function fetchData() {
       const credentials = getCredentials();
@@ -457,11 +488,22 @@ export default function AnalyzePage() {
                       · {formatRelativeTime(submissionsLastUpdated)}
                     </span>
                   )}
-                  {refreshingSubmissions && (
-                    <span className="flex items-center gap-1 text-xs text-orange-500">
-                      <span className="animate-spin h-3 w-3 border-b border-orange-500 rounded-full"></span>
-                      refreshing
-                    </span>
+                  {!loadingSubmissions && (
+                    <button
+                      onClick={refreshSubmissions}
+                      disabled={refreshingSubmissions}
+                      title="Refresh submissions"
+                      className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 transition-colors"
+                    >
+                      <svg
+                        className={`w-4 h-4 ${refreshingSubmissions ? "animate-spin text-orange-500" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
                   )}
                 </div>
                 {submissions.length > 0 && (
