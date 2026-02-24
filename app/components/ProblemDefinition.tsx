@@ -63,7 +63,7 @@ export function ProblemDefinition({
       </button>
 
       {expanded && (
-        <div className="mt-3 p-4 bg-white dark:bg-zinc-800 rounded-lg">
+        <div className="mt-3 p-4 bg-white dark:bg-zinc-800 rounded-lg overflow-x-hidden">
           {topicTags && topicTags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-4">
               {topicTags.map((tag) => (
@@ -78,9 +78,9 @@ export function ProblemDefinition({
           )}
           <div
             className="prose prose-zinc dark:prose-invert max-w-none prose-sm
-              prose-pre:bg-zinc-100 prose-pre:dark:bg-zinc-900
+              prose-pre:bg-zinc-100 prose-pre:dark:bg-zinc-900 prose-pre:whitespace-pre-wrap
               prose-code:text-orange-600 prose-code:dark:text-orange-400
-              prose-img:rounded-lg"
+              prose-img:rounded-lg [&_pre]:whitespace-pre-wrap"
             dangerouslySetInnerHTML={{ __html: content }}
           />
         </div>
